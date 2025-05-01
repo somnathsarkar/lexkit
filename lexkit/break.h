@@ -1,3 +1,6 @@
+#ifndef __LEXKIT_BREAK__
+#define __LEXKIT_BREAK__
+
 #include <lexkit/types.h>
 
 // Unicode General Categories
@@ -345,7 +348,7 @@ typedef struct
   u32*  ep_range_start;
   u32*  ep_range_end;
   i32   ep_range_count;
-} UnicodeData;
+} LkUnicodeData;
 
 bool UnicodeDataTryLoadFromSpec(
     const char* str_path_lb,
@@ -355,9 +358,9 @@ bool UnicodeDataTryLoadFromSpec(
     const char* str_path_eaw,
     const char* str_path_incb,
     const char* str_path_ep,
-    UnicodeData* o_ud);
+    LkUnicodeData* o_ud);
 
-Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, UnicodeData* ud);
+Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);
 
 typedef struct
 {
@@ -406,4 +409,6 @@ typedef struct
 } BreakerResult;
 
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
-BreakerResult BreakerAdvance(Breaker* brk, UnicodeData* ud);
+BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
+
+#endif

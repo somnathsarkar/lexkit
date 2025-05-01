@@ -197,7 +197,7 @@ bool UnicodeDataTryLoadFromSpec(
     const char* str_path_eaw,
     const char* str_path_incb,
     const char* str_path_ep,
-    UnicodeData* o_ud)
+    LkUnicodeData* o_ud)
 {
   assert(o_ud != NULL);
   char buf[S_MAX_LINE];
@@ -485,7 +485,7 @@ bool UnicodeDataTryLoadFromSpec(
   return true;
 }
 
-Glyph GetGlyphAtIndex(const u32 *codepoints, i32 len_codepoints, i32 idx, UnicodeData* ud)
+Glyph GetGlyphAtIndex(const u32 *codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud)
 {
   Glyph glyph                 = {0};
   if (idx < 0 || idx >= len_codepoints)
@@ -599,7 +599,7 @@ void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk)
   o_brk->idx = -1;
 }
 
-static void BreakerGetNextGlyphLineBreak(Breaker* brk, UnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
+static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
 {
   if (*io_next)
     return;
@@ -617,7 +617,7 @@ static void BreakerGetNextGlyphLineBreak(Breaker* brk, UnicodeData* ud, bool* io
   }
 }
 
-static LBRK BreakerComputeLbrk(Breaker* brk, UnicodeData* ud)
+static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
 {
   // LB3
 
@@ -1082,7 +1082,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, UnicodeData* ud)
   return LBRK_OPT;
 }
 
-static void BreakerGetNextGlyphWordBreak(Breaker* brk, UnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
+static void BreakerGetNextGlyphWordBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
 {
   if (*io_next)
     return;
@@ -1111,7 +1111,7 @@ static bool IsAHLetterX(WBCX wbcx)
   return (wbcx == WBCX_ALetter || wbcx == WBCX_Hebrew_Letter);
 }
 
-WBRK BreakerComputeWbrk(Breaker* brk, UnicodeData* ud)
+WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
 {
   // WB2
 
@@ -1323,7 +1323,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, UnicodeData* ud)
   return WBRK_BRK;
 }
 
-GBRK BreakerComputeGbrk(Breaker* brk, UnicodeData* ud)
+GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
 {
   // GB2
 
@@ -1442,7 +1442,7 @@ GBRK BreakerComputeGbrk(Breaker* brk, UnicodeData* ud)
   return GBRK_BRK;
 }
 
-BreakerResult BreakerAdvance(Breaker* brk, UnicodeData* ud)
+BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
 {
   BreakerResult res = {0};
   

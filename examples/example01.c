@@ -11,6 +11,7 @@
 #include <generated/shaders/text.vert.h>
 #include <generated/shaders/text.frag.h>
 
+#include <lexkit/lexkit.h>
 #include <lexkit/break.h>
 
 #include <stdio.h>
@@ -50,36 +51,9 @@ void* glad_load_func(const char* name)
   return p;
 }
 
-typedef struct
-{
-  int codepoint;
-  int bitmap_left;
-  int bitmap_top;
-  int bitmap_rows;
-  int bitmap_width;
-  float u_min;
-  float v_min;
-  float u_max;
-  float v_max;
-  int x_advance_hyphen;
-  int x_offset_hyphen;
-  int y_offset_hyphen;
-} FontAtlasGlyph;
-
-typedef struct {
-  float x;
-  float y;
-  float w;
-  float h;
-  float u_min;
-  float v_min;
-  float u_max;
-  float v_max;
-} VertexDescriptor_Text;
-
 unsigned char buffer[2048 * 2048] = { 0 };
 
-VertexDescriptor_Text vd[10240] = {0};
+LkVertexDescriptor_Text vd[10240] = {0};
 
 GLuint create_prog(
     const unsigned char* vs, const unsigned int vs_len,
@@ -121,7 +95,7 @@ int main() {
   int len_cstr = strnlen(cstr, 10000);
   int font_size = 72;
 
-  UnicodeData ud = {0};
+  LkUnicodeData ud = {0};
   bool ud_success = UnicodeDataTryLoadFromSpec(
       "C:/Code/lexkit/lexkit/LineBreakProperty.txt",
       "C:/Code/lexkit/lexkit/WordBreakProperty.txt",
@@ -162,7 +136,7 @@ int main() {
   int cursor_x = 2;
   int cursor_y = 2;
   int cursor_y_max = 0;
-  FontAtlasGlyph glyphs[1000] = {0};
+  LkFontAtlasGlyph glyphs[1000] = {0};
 
   int hyphen_glyph_i;
   int hyphen_advance_x;
@@ -374,10 +348,10 @@ int main() {
   glBindVertexArray(vao_text);
   glGenBuffers(1, &buffer_vertex_text);
   glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
-  glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(VertexDescriptor_Text), (void*)0);
+  glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(LkVertexDescriptor_Text), (void*)0);
   glVertexAttribDivisor(0, 1);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(VertexDescriptor_Text), (void*)16);
+  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(LkVertexDescriptor_Text), (void*)16);
   glVertexAttribDivisor(1, 1);
   glEnableVertexAttribArray(1);
 
@@ -489,8 +463,8 @@ int main() {
 
         for (int i = word_start_i; i < word_end_i; i++)
         {
-          FontAtlasGlyph aglyph = glyphs[glyph_info[i].codepoint];
-          VertexDescriptor_Text v = {
+          LkFontAtlasGlyph aglyph = glyphs[glyph_info[i].codepoint];
+          LkVertexDescriptor_Text v = {
             ((cursor_x + glyph_pos[i].x_offset) / 64.0f + aglyph.bitmap_left) / w,
             ((cursor_y + glyph_pos[i].y_offset + ascent) / 64.0f - aglyph.bitmap_top) / h,
             ((float) aglyph.bitmap_width) / w,
@@ -506,8 +480,8 @@ int main() {
                         glyph_pos[i].x_advance;
           if (grapheme_break_i == i)
           {
-            FontAtlasGlyph aglyph_hyphen = glyphs[hyphen_glyph_i];
-            VertexDescriptor_Text v = {
+            LkFontAtlasGlyph aglyph_hyphen = glyphs[hyphen_glyph_i];
+            LkVertexDescriptor_Text v = {
               ((cursor_x + aglyph.x_offset_hyphen) / 64.0f + aglyph_hyphen.bitmap_left) / w,
               ((cursor_y + aglyph.y_offset_hyphen + ascent) / 64.0f - aglyph_hyphen.bitmap_top) / h,
               ((float) aglyph_hyphen.bitmap_width) / w,
@@ -548,3 +522,4 @@ int main() {
   }
   return 0;
 }
+
