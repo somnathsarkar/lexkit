@@ -6,7 +6,9 @@ target_sources(
   lexkit/lexkit.c
   lexkit/break.c
 )
-target_include_directories(lexkit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
+target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
+target_link_directories(lexkit PUBLIC C:/Dev/harfbuzz-10.2.0/build/Debug C:/Dev/freetype-2.13.3/build/Debug)
+target_link_libraries(lexkit PUBLIC harfbuzz.lib freetyped.lib)
 
 add_executable(example01)
 target_sources(
@@ -14,9 +16,8 @@ target_sources(
   examples/example01.c
   extern/glad/gl.c
   extern/glad/wgl.c)
-target_include_directories(example01 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
-target_link_directories(example01 PRIVATE C:/Dev/harfbuzz-10.2.0/build/Debug C:/Dev/freetype-2.13.3/build/Debug)
-target_link_libraries(example01 PRIVATE Opengl32.lib harfbuzz.lib freetyped.lib lexkit)
+target_include_directories(example01 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(example01 PRIVATE Opengl32.lib lexkit)
 
 function(target_shaders tgt policy)
   foreach(shd ${ARGN})

@@ -189,7 +189,7 @@ static i32 CountImportantLinesEmoji(FILE* fp)
   return ans;
 }
 
-bool UnicodeDataTryLoadFromSpec(
+bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_lb,
     const char* str_path_wb,
     const char* str_path_gb,

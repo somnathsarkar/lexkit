@@ -350,7 +350,7 @@ typedef struct
   i32   ep_range_count;
 } LkUnicodeData;
 
-bool UnicodeDataTryLoadFromSpec(
+bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_lb,
     const char* str_path_wb,
     const char* str_path_gb,
