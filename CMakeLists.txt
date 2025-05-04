@@ -40,3 +40,13 @@ function(target_shaders tgt policy)
   endforeach()
 endfunction(target_shaders)
 target_shaders(example01 PRIVATE fullscreen.frag fullscreen.vert text.frag text.vert)
+
+add_executable(example02)
+target_sources(
+  example02 PRIVATE
+  examples/example02.c
+  extern/glad/gl.c
+  extern/glad/wgl.c)
+target_include_directories(example02 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(example02 PRIVATE Opengl32.lib lexkit)
+target_shaders(example02 PRIVATE fullscreen.frag fullscreen.vert text.frag text.vert)

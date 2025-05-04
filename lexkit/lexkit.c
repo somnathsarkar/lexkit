@@ -5,11 +5,13 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <assert.h>
+
 #define GRAPHEME_BREAK_COUNT 16
 
-void lkCreateFont(i32 font_size, LkFont *o_font)
+void lkCreateFont(const char* cstr_path, i32 font_size, LkFont *o_font)
 {
-  hb_blob_t *blob = hb_blob_create_from_file("C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf");
+  hb_blob_t *blob = hb_blob_create_from_file(cstr_path);
   hb_face_t *face = hb_face_create(blob, 0);
   hb_font_t *font = hb_font_create(face);
   hb_font_set_scale(font, font_size * 64, font_size * 64);
@@ -17,21 +19,21 @@ void lkCreateFont(i32 font_size, LkFont *o_font)
   FT_Library library;
   FT_Face ftface;
   FT_Init_FreeType(&library);
-  FT_New_Face(library, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", 0, &ftface);
+  FT_New_Face(library, cstr_path, 0, &ftface);
   FT_Set_Char_Size(ftface, font_size * 64, font_size * 64, 0, 0);
 
   int cursor_x = 2;
   int cursor_y = 2;
   int cursor_y_max = 0;
-  o_font->buffer = calloc(2048 * 2048, sizeof(u8));
-  o_font->glyphs = malloc(sizeof(LkFontAtlasGlyph) * 1000);
+  o_font->buffer = calloc(4096 * 4096, sizeof(u8));
+  o_font->glyphs = calloc(2000, sizeof(LkFontAtlasGlyph));
 
-  for(int i = 0; i < 1000; i++)
+  for(int i = 0; i < 2000; i++)
   {
     o_font->glyphs[i].codepoint = i;
     FT_Load_Glyph(ftface, i, FT_LOAD_DEFAULT);
     FT_Render_Glyph(ftface->glyph, FT_RENDER_MODE_NORMAL);
-    if (cursor_x + ftface->glyph->bitmap.width >= 2048)
+    if (cursor_x + ftface->glyph->bitmap.width >= 4096)
     {
       cursor_y = cursor_y_max + 2;
       cursor_x = 2;
@@ -44,10 +46,15 @@ void lkCreateFont(i32 font_size, LkFont *o_font)
     // TODO: Verify uv bounds against notepad. Without calloc in buffer, noise occurs at letter
     //  boundaries.
 
-    o_font->glyphs[i].u_min = (cursor_x) / 2048.0f;
-    o_font->glyphs[i].v_min = (cursor_y) / 2048.0f;
-    o_font->glyphs[i].u_max = (cursor_x + ftface->glyph->bitmap.width) / 2048.0f;
-    o_font->glyphs[i].v_max = (cursor_y + ftface->glyph->bitmap.rows) / 2048.0f;
+    o_font->glyphs[i].u_min = (cursor_x) / 4096.0f;
+    o_font->glyphs[i].v_min = (cursor_y) / 4096.0f;
+    o_font->glyphs[i].u_max = (cursor_x + ftface->glyph->bitmap.width) / 4096.0f;
+    o_font->glyphs[i].v_max = (cursor_y + ftface->glyph->bitmap.rows) / 4096.0f;
+
+    // TODO: Zero-initialize FontAtlasGlyph (or all other fields)
+
+    o_font->glyphs[i].canuse_hyphen = false;
+
     int cursor_x_local = cursor_x;
     int cursor_y_local = cursor_y;
     int cursor_x_max = cursor_x_local;
@@ -56,7 +63,7 @@ void lkCreateFont(i32 font_size, LkFont *o_font)
       for (int k = 0; k < ftface->glyph->bitmap.width; k++)
       {
         int pix = j * ftface->glyph->bitmap.pitch + k;
-        o_font->buffer[cursor_y_local * 2048 + cursor_x_local] = ftface->glyph->bitmap.buffer[pix];
+        o_font->buffer[cursor_y_local * 4096 + cursor_x_local] = ftface->glyph->bitmap.buffer[pix];
         cursor_x_local++;
         cursor_x_max = (cursor_x_local > cursor_x_max) ? cursor_x_local : cursor_x_max;
         cursor_y_max = (cursor_y_local > cursor_y_max) ? cursor_y_local : cursor_y_max;
@@ -66,10 +73,14 @@ void lkCreateFont(i32 font_size, LkFont *o_font)
     }
     cursor_x = cursor_x_max;
     cursor_x += 2;
+  }
 
+  for (int i = 0; i < 10000; i++)
+  {
     // Hyphen advances
 
-    const char* hyphen_pair_cstr = "‐";
+    const char* hyphen_pair_cstr = "-";
+    hb_buffer_t *hyphen_buf;
     hb_buffer_t *hyphen_pair_buf;
     hyphen_pair_buf = hb_buffer_create();
     hb_codepoint_t codepoint_i = i;
@@ -80,13 +91,18 @@ void lkCreateFont(i32 font_size, LkFont *o_font)
     hb_glyph_info_t* hyphen_pair_glyph_info = hb_buffer_get_glyph_infos(hyphen_pair_buf, &hyphen_pair_glyph_count);
     hb_shape(font, hyphen_pair_buf, NULL, 0);
     hyphen_pair_glyph_info = hb_buffer_get_glyph_infos(hyphen_pair_buf, &hyphen_pair_glyph_count);
-    hb_glyph_position_t* hyphen_pair_glyph_pos = hb_buffer_get_glyph_positions(hyphen_pair_buf, &hyphen_pair_glyph_count);
-    o_font->glyphs[i].x_advance_hyphen = hyphen_pair_glyph_pos[0].x_advance;
-    o_font->glyphs[i].x_offset_hyphen = hyphen_pair_glyph_pos[1].x_offset;
-    o_font->glyphs[i].y_offset_hyphen = hyphen_pair_glyph_pos[1].y_offset;
+    hb_codepoint_t glyph_index_i = hyphen_pair_glyph_info[0].codepoint;
+    if (glyph_index_i >= 0 && glyph_index_i < 2000)
+    {
+      hb_glyph_position_t* hyphen_pair_glyph_pos = hb_buffer_get_glyph_positions(hyphen_pair_buf, &hyphen_pair_glyph_count);
+      o_font->glyphs[glyph_index_i].x_advance_hyphen = hyphen_pair_glyph_pos[0].x_advance;
+      o_font->glyphs[glyph_index_i].x_offset_hyphen = hyphen_pair_glyph_pos[1].x_offset;
+      o_font->glyphs[glyph_index_i].y_offset_hyphen = hyphen_pair_glyph_pos[1].y_offset;
+      o_font->glyphs[glyph_index_i].canuse_hyphen = true;
+    }
   }
 
-  const char* hyphen_cstr = "‐";
+  const char* hyphen_cstr = "-";
   hb_buffer_t *hyphen_buf;
   hyphen_buf = hb_buffer_create();
   hb_buffer_add_utf8(hyphen_buf, hyphen_cstr, -1, 0, -1);
@@ -96,7 +112,7 @@ void lkCreateFont(i32 font_size, LkFont *o_font)
   hb_shape(font, hyphen_buf, NULL, 0);
   hyphen_glyph_info = hb_buffer_get_glyph_infos(hyphen_buf, &hyphen_glyph_count);
   hb_glyph_position_t* hyphen_glyph_pos = hb_buffer_get_glyph_positions(hyphen_buf, &hyphen_glyph_count);
-  FT_Load_Char(ftface, 0x2010, FT_LOAD_DEFAULT);
+  FT_Load_Char(ftface, '-', FT_LOAD_DEFAULT);
   o_font->hyphen_glyph_i = ftface->glyph->glyph_index;
   o_font->hyphen_advance_x = hyphen_glyph_pos[0].x_advance;
   o_font->hyphen_offset_x = hyphen_glyph_pos[0].x_offset;
@@ -193,6 +209,9 @@ void lkLayoutText(
       {
         if ((cursor_x + grapheme_advances[i] + font->hyphen_advance_x) / 64.0 < w)
         {
+          const hb_glyph_info_t* focus_glyph_info = &((hb_glyph_info_t*)(text->glyph_info))[grapheme_breaks[i]];
+          LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph_info->codepoint];
+          if (!aglyph.canuse_hyphen) continue;
           grapheme_break_i = grapheme_breaks[i];
         }
       }

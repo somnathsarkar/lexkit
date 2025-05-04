@@ -18,6 +18,7 @@ typedef struct
   int x_advance_hyphen;
   int x_offset_hyphen;
   int y_offset_hyphen;
+  bool canuse_hyphen;
 } LkFontAtlasGlyph;
 
 typedef struct {
@@ -53,7 +54,7 @@ typedef struct
   void* glyph_pos; // hb_glyph_position_t*
 } LkText;
 
-void lkCreateFont(i32 font_size, LkFont* o_font);
+void lkCreateFont(const char* cstr_path, i32 font_size, LkFont* o_font);
 void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
 void lkLayoutText(
       LkUnicodeData* ud,

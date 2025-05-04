@@ -10,6 +10,7 @@
 
 #include <lexkit/lexkit.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -72,19 +73,16 @@ int main() {
   QueryPerformanceFrequency(&qpf);
   int64_t timestamp_res = qpf.QuadPart;
 
-  const char* cstr = \
-    "Call Me Ishmael. Some years ago—never mind how long precisely—having "
-    "little or no money in my purse, and nothing particular to interest me on shore, "
-    "I thought I would sail about a little and see the watery part of the world. "
-    "It is a way I have of driving off the spleen, and regulating the circulation. "
-    "Whenever I find myself growing grim about the mouth; whenever it is a damp, "
-    "drizzly November in my soul; whenever I find myself involuntarily pausing before "
-    "coffin warehouses, and bringing up the rear of every funeral I meet; and especially "
-    "whenever my hypos get such an upper hand of me, that it requires a strong moral "
-    "principle to prevent me from deliberately stepping into the street, and "
-    "methodically knocking people’s hats off—then, I account it high time to get "
-    "to sea as soon as I can.";
-  int len_cstr = strnlen(cstr, 10000);
+  FILE* fp = NULL;
+  errno_t err_fopen = fopen_s(&fp, "example_bidi.txt", "r");
+  assert(!err_fopen);
+  char* cstr = NULL;
+  fseek(fp, 0, SEEK_END);
+  i32 len_cstr = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  cstr = (char*)malloc(sizeof(char) * (len_cstr + 1));
+  fread(cstr, sizeof(char), len_cstr, fp);
+  cstr[len_cstr] = '\0';
   int font_size = 72;
 
   LkUnicodeData ud = {0};
@@ -177,7 +175,7 @@ int main() {
   ShowWindow(hwnd, SW_SHOW);
 
   LkFont font;
-  lkCreateFont("C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
+  lkCreateFont("C:/Windows/Fonts/Arial.ttf", font_size, &font);
   LkText text;
   lkCreateText(&font, cstr, len_cstr, &text);
 
