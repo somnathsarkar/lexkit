@@ -94,6 +94,7 @@ int main() {
       "C:/Code/lexkit/lexkit/EastAsianWidth.txt",
       "C:/Code/lexkit/lexkit/DerivedCoreProperties.txt",
       "C:/Code/lexkit/lexkit/emoji-data.txt",
+      "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
       &ud);
 
   WNDCLASSA cls = {0};

@@ -300,6 +300,37 @@ typedef enum
   INCB_Count,
 } INCB;
 
+// Unicode Derived Bidirectional Class
+
+typedef enum
+{
+  BIDIC_L,
+  BIDIC_R,
+  BIDIC_AL,
+  BIDIC_EN,
+  BIDIC_ES,
+  BIDIC_ET,
+  BIDIC_AN,
+  BIDIC_CS,
+  BIDIC_NSM,
+  BIDIC_BN,
+  BIDIC_B,
+  BIDIC_S,
+  BIDIC_WS,
+  BIDIC_ON,
+  BIDIC_LRE,
+  BIDIC_LRO,
+  BIDIC_RLE,
+  BIDIC_RLO,
+  BIDIC_PDF,
+  BIDIC_LRI,
+  BIDIC_RLI,
+  BIDIC_FSI,
+  BIDIC_PDI,
+
+  BIDIC_Count,
+} BIDIC;
+
 typedef struct
 {
   i32 idx;
@@ -348,6 +379,11 @@ typedef struct
   u32*  ep_range_start;
   u32*  ep_range_end;
   i32   ep_range_count;
+
+  u32*  bidi_range_start;
+  u32*  bidi_range_end;
+  BIDIC* bidi_range_cls;
+  i32   bidi_range_count;
 } LkUnicodeData;
 
 bool lkTryLoadUnicodeDataFromSpec(
@@ -358,6 +394,7 @@ bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_eaw,
     const char* str_path_incb,
     const char* str_path_ep,
+    const char* str_path_bidi,
     LkUnicodeData* o_ud);
 
 Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);

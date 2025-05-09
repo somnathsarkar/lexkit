@@ -146,6 +146,32 @@ const char* g_map_incb_str[] = {
   "Extend",             // INCB_Extend
 };
 
+const char* g_map_bidic_str[] = {
+  "L",									// BIDIC_L
+  "R",									// BIDIC_R
+  "AL",									// BIDIC_AL
+  "EN",									// BIDIC_EN
+  "ES",									// BIDIC_ES
+  "ET",									// BIDIC_ET
+  "AN",									// BIDIC_AN
+  "CS",									// BIDIC_CS
+  "NSM",								// BIDIC_NSM
+  "BN",									// BIDIC_BN
+  "B",									// BIDIC_B
+  "S",									// BIDIC_S
+  "WS",									// BIDIC_WS
+  "ON",									// BIDIC_ON
+  "LRE",								// BIDIC_LRE
+  "LRO",								// BIDIC_LRO
+  "RLE",								// BIDIC_RLE
+  "RLO",								// BIDIC_RLO
+  "PDF",								// BIDIC_PDF
+  "LRI",								// BIDIC_LRI
+  "RLI",								// BIDIC_RLI
+  "FSI",								// BIDIC_FSI
+  "PDI",								// BIDIC_PDI
+};
+
 static bool IsHexChar(char c)
 {
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
@@ -197,6 +223,7 @@ bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_eaw,
     const char* str_path_incb,
     const char* str_path_ep,
+    const char* str_path_bidi,
     LkUnicodeData* o_ud)
 {
   assert(o_ud != NULL);
@@ -479,6 +506,49 @@ bool lkTryLoadUnicodeDataFromSpec(
     {
       o_ud->ep_range_start[i_range] = range_start;
       o_ud->ep_range_end[i_range]   = range_end;
+    }
+    i_range++;
+  }
+
+  err = fopen_s(&fp, str_path_bidi, "r");
+  if (err)
+    return false;
+  o_ud->bidi_range_count = CountImportantLines(fp);
+  rewind(fp);
+  o_ud->bidi_range_start = (u32*)malloc(o_ud->bidi_range_count * sizeof(u32));
+  o_ud->bidi_range_end = (u32*)malloc(o_ud->bidi_range_count * sizeof(u32));
+  o_ud->bidi_range_cls = (BIDIC*)malloc(o_ud->bidi_range_count * sizeof(BIDIC));
+  i_range = 0;
+  while (fgets(buf, S_MAX_LINE, fp))
+  {
+    if (!IsHexChar(buf[0]))
+      continue;
+
+    u32 range_start = 0;
+    u32 range_end = 0;
+
+    int three_parse = sscanf_s(buf, "%x..%x ; %s", &range_start, &range_end, buf_cls, S_MAX_LINE);
+    if (three_parse < 3)
+    {
+      int two_parse = sscanf_s(buf, "%x ; %s", &range_start, &buf_cls, S_MAX_LINE);
+      if (two_parse < 2)
+        return false;
+      o_ud->bidi_range_start[i_range] = range_start;
+      o_ud->bidi_range_end[i_range]   = range_start;
+    }
+    else
+    {
+      o_ud->bidi_range_start[i_range] = range_start;
+      o_ud->bidi_range_end[i_range]   = range_end;
+    }
+    o_ud->bidi_range_cls[i_range] = BIDIC_L;
+    for (int i_cls = 0; i_cls < BIDIC_Count; i_cls++)
+    {
+      if (strncmp(g_map_bidic_str[i_cls], buf_cls, strnlen_s(g_map_bidic_str[i_cls], S_MAX_LINE)) == 0)
+      {
+        o_ud->bidi_range_cls[i_range] = (BIDIC) i_cls;
+        break;
+      }
     }
     i_range++;
   }
