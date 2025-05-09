@@ -401,7 +401,7 @@ typedef enum
 
 typedef struct
 {
-  i32   glyph_idx;
+  i32   glyph_idx;  // TODO: This should be codepoint_idx
   bool  done;
   LBRK  lbrk;
   WBRK  wbrk;

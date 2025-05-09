@@ -48,6 +48,7 @@ typedef struct
 
 typedef struct
 {
+  u32 codepoint_count;
   u32 glyph_count;
   u32* codepoints;
   void* glyph_info; // hb_glyph_info_t*

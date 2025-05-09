@@ -133,15 +133,20 @@ void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
   hb_buffer_add_utf8(buf, cstr, -1, 0, -1);
   hb_buffer_guess_segment_properties(buf);
 
-  o_text->glyph_count = 0;
-  o_text->glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->glyph_count);
+  o_text->codepoint_count = 0;
+  o_text->glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->codepoint_count);
 
-  o_text->codepoints = (u32*) malloc(sizeof(u32) * o_text->glyph_count);
-  for (int i = 0; i < o_text->glyph_count; i++)
+  o_text->codepoints = (u32*) malloc(sizeof(u32) * o_text->codepoint_count);
+  for (int i = 0; i < o_text->codepoint_count; i++)
     o_text->codepoints[i] = ((hb_glyph_info_t*)(o_text->glyph_info))[i].codepoint;
 
   hb_shape(font->font, buf, NULL, 0);
   o_text->glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->glyph_count);
+  
+  // TODO: Number of codepoints does not need to match glyphs. Remove this assert when break behavior is changed
+  //	so that glyph index does not need to match codepoint index.
+  
+  assert(o_text->codepoint_count == o_text->glyph_count);
   o_text->glyph_pos = hb_buffer_get_glyph_positions(buf, &o_text->glyph_count);
 }
 
@@ -156,7 +161,7 @@ void lkLayoutText(
       i32* o_vd_count)
 {
   Breaker brk = {0};
-  BreakerCreate(text->codepoints, text->glyph_count, &brk);
+  BreakerCreate(text->codepoints, text->codepoint_count, &brk);
 
   float cursor_x = 0.0f;
   float cursor_y = 0.0f;
@@ -166,6 +171,11 @@ void lkLayoutText(
   bool can_line_break = false;
   bool can_line_break_before_word = false;
   int vdc = 0;
+  
+  // BB: gi uses glyph indices, but brk uses codepoint indices. The hb_glyph_info_t struct has a cluster_id
+  //	member after shaping that maps shaped glyph to the codepoint. That member should be checked here
+  //	and the assert that compares glyph_count to codepoint_count should be removed.
+  
   while (gi < text->glyph_count)
   {
     float word_advance = 0.0f;
