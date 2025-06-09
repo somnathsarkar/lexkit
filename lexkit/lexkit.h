@@ -3,6 +3,7 @@
 
 #include <lexkit/types.h>
 #include <lexkit/break.h>
+#include <lexkit/bidi.h>
 
 typedef struct
 {
@@ -49,18 +50,53 @@ typedef struct
 typedef struct
 {
   u32 codepoint_count;
-  u32 glyph_count;
   u32* codepoints;
-  void* glyph_info; // hb_glyph_info_t*
-  void* glyph_pos; // hb_glyph_position_t*
 } LkText;
+
+struct LkGlyph
+{
+  u32 glyph_index;
+  i32 x_advance;
+  i32 y_advance;
+  i32 x_offset;
+  i32 y_offset;
+
+  struct LkGlyph* next;
+};
+
+typedef struct LkGlyph LkGlyph;
+
+typedef struct
+{
+  i32 start_i;
+  i32 end_i;
+  bool hyphen_end;
+} LkLine;
 
 void lkCreateFont(const char* cstr_path, i32 font_size, LkFont* o_font);
 void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
+void lkShapeText(
+    LkFont* font,
+    LkText* text,
+    i32 lrun_count,
+    LevelRun* lruns,
+    LkGlyph*** o_glyphs);
+void lkSplitLines(
+    LkUnicodeData* ud,
+    LkFont* font,
+    LkText* text,
+    LkGlyph** glyphs,
+    i32 w,
+    i32 h,
+    i32* o_line_count,
+    LkLine* o_lines);
 void lkLayoutText(
       LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
+      LkGlyph** glyphs,
+      i32 line_count,
+      LkLine* lines,
       i32 w,
       i32 h,
       u64 max_vd,

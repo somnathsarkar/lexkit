@@ -172,6 +172,12 @@ const char* g_map_bidic_str[] = {
   "PDI",								// BIDIC_PDI
 };
 
+const char* g_map_bidipbt_str[] = {
+  "n",                  // BIDIPBT_None
+  "o",                  // BIDIPBT_Open
+  "c",                  // BIDIPBT_Close
+};
+
 static bool IsHexChar(char c)
 {
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
@@ -224,6 +230,7 @@ bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_incb,
     const char* str_path_ep,
     const char* str_path_bidi,
+    const char* str_path_bidipb,
     LkUnicodeData* o_ud)
 {
   assert(o_ud != NULL);
@@ -547,6 +554,39 @@ bool lkTryLoadUnicodeDataFromSpec(
       if (strncmp(g_map_bidic_str[i_cls], buf_cls, strnlen_s(g_map_bidic_str[i_cls], S_MAX_LINE)) == 0)
       {
         o_ud->bidi_range_cls[i_range] = (BIDIC) i_cls;
+        break;
+      }
+    }
+    i_range++;
+  }
+
+  err = fopen_s(&fp, str_path_bidipb, "r");
+  if (err)
+    return false;
+  o_ud->bidipb_count = CountImportantLines(fp);
+  rewind(fp);
+  o_ud->bidipb_key = (u32*)malloc(o_ud->bidipb_count * sizeof(u32));
+  o_ud->bidipb_value = (u32*)malloc(o_ud->bidipb_count * sizeof(u32));
+  o_ud->bidipbt = (BIDIPBT*)malloc(o_ud->bidipb_count * sizeof(BIDIPBT));
+  i_range = 0;
+  while (fgets(buf, S_MAX_LINE, fp))
+  {
+    if (!IsHexChar(buf[0]))
+      continue;
+
+    u32 key = 0;
+    u32 val = 0;
+
+    int three_parse = sscanf_s(buf, "%x ; %x ; %s", &key, &val, buf_cls, S_MAX_LINE);
+    if (three_parse < 3) return false;
+    o_ud->bidipb_key[i_range]     = key;
+    o_ud->bidipb_value[i_range]   = val;
+    o_ud->bidipbt[i_range]        = BIDIPBT_None;
+    for (int i_cls = 0; i_cls < BIDIPBT_Count; i_cls++)
+    {
+      if (strncmp(g_map_bidipbt_str[i_cls], buf_cls, strnlen_s(g_map_bidipbt_str[i_cls], S_MAX_LINE)) == 0)
+      {
+        o_ud->bidipbt[i_range] = (BIDIPBT) i_cls;
         break;
       }
     }

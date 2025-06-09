@@ -45,6 +45,7 @@ void* glad_load_func(const char* name)
   return p;
 }
 
+LkLine lines[512] = {0};
 LkVertexDescriptor_Text vd[10240] = {0};
 
 GLuint create_prog(
@@ -97,6 +98,7 @@ int main() {
       "C:/Code/lexkit/lexkit/DerivedCoreProperties.txt",
       "C:/Code/lexkit/lexkit/emoji-data.txt",
       "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
+      "C:/Code/lexkit/lexkit/BidiBrackets.txt",
       &ud);
 
   WNDCLASSA cls = {0};
@@ -181,6 +183,14 @@ int main() {
   lkCreateFont("C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
   LkText text;
   lkCreateText(&font, cstr, len_cstr, &text);
+  i32 level_run_count = -1;
+  LevelRun* level_runs = NULL;
+  i32 para_count = -1;
+  Paragraph* paragraphs = NULL;
+  LkGlyph** glyphs = NULL;
+  lkSplitParagraphs(text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
+  lkSplitBidiRuns(text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &level_run_count, &level_runs);
+  lkShapeText(&font, &text, level_run_count, level_runs, &glyphs);
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   GLuint tex;
@@ -276,7 +286,9 @@ int main() {
       glClear(GL_COLOR_BUFFER_BIT);
 
       i32 vdc = 0;
-      lkLayoutText(&ud, &font, &text, w, h, 10240, vd, &vdc);
+      i32 line_count = -1;
+      lkSplitLines(&ud, &font, &text, glyphs, w, h, &line_count, lines);
+      lkLayoutText(&ud, &font, &text, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(
@@ -292,7 +304,7 @@ int main() {
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, tex);
       glUniform1i(0, 0);
-      glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, len_cstr);
+      glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, vdc);
 
       HDC hdc = GetDC(hwnd);
       SwapBuffers(hdc);

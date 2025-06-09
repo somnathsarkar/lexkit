@@ -331,6 +331,17 @@ typedef enum
   BIDIC_Count,
 } BIDIC;
 
+// Unicode Bidi_Paired_Bracket_Type property value
+
+typedef enum
+{
+  BIDIPBT_None,
+  BIDIPBT_Open,
+  BIDIPBT_Close,
+
+  BIDIPBT_Count,
+} BIDIPBT;
+
 typedef struct
 {
   i32 idx;
@@ -384,6 +395,11 @@ typedef struct
   u32*  bidi_range_end;
   BIDIC* bidi_range_cls;
   i32   bidi_range_count;
+
+  u32*  bidipb_key;
+  u32*  bidipb_value;
+  BIDIPBT* bidipbt;
+  u32   bidipb_count;
 } LkUnicodeData;
 
 bool lkTryLoadUnicodeDataFromSpec(
@@ -395,6 +411,7 @@ bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_incb,
     const char* str_path_ep,
     const char* str_path_bidi,
+    const char* str_path_bidipb,
     LkUnicodeData* o_ud);
 
 Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);
