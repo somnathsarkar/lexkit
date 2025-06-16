@@ -20,6 +20,18 @@ typedef struct
   i32 para_level;
 } Paragraph;
 
+typedef struct
+{
+  BIDIC bidic;
+  u32   bidipb;
+  BIDIPBT bidipbt;
+  BIDIC bidic_orig;
+} BidiUnit;
+
+BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud);
+
+extern const i32 g_bidi_max_depth; // Fixed by Unicode, guaranteed to never change
+
 void lkSplitParagraphs(
     const u32* codepoints,
     i32 len_codepoints,
@@ -33,6 +45,7 @@ void lkSplitBidiRuns(
     LkUnicodeData* ud,
     i32 paragraph_count,
     Paragraph* paragraphs,
+    i32** o_levels,
     i32* o_level_run_count,
     LevelRun** o_level_runs);
 

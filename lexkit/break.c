@@ -1,4 +1,5 @@
 #include <lexkit/break.h>
+#include <lexkit/lexkit.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1877,4 +1878,16 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   res.gbrk = gbrk;
 
   return res;
+}
+
+BreakerResult* lkGetBreaks(const struct LkText* text, LkUnicodeData* ud)
+{
+  BreakerResult* breaks = (BreakerResult*)calloc(text->codepoint_count, sizeof(BreakerResult));
+  Breaker brk = {0};
+  BreakerCreate(text->codepoints, text->codepoint_count, &brk);
+  for (i32 i = 0; i < text->codepoint_count; i++)
+  {
+    breaks[i] = BreakerAdvance(&brk, ud);
+  }
+  return breaks;
 }

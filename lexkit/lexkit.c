@@ -142,11 +142,18 @@ void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
     o_text->codepoints[i] = glyph_info[i].codepoint;
 }
 
+float MaxF32(float a, float b)
+{
+  return (a < b) ? b : a;
+}
+
 void lkSplitLines(
     LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
+    i32 para_count,
+    Paragraph* paras,
     i32 w,
     i32 h,
     i32* o_line_count,
@@ -160,135 +167,158 @@ void lkSplitLines(
 
   *o_line_count = 0;
 
-  Breaker brk = {0};
-  BreakerCreate(text->codepoints, text->codepoint_count, &brk);
+  BreakerResult* breaks = lkGetBreaks(text, ud);
 
-  float cursor_x = 0.0f;
   float cursor_y = 0.0f;
-  int next_break = -1;
-  bool parse_failure = false;
-  int codepoint_i = 0;
-  i32 line_start_i = 0;
-  i32 line_end_i = 0;
-  bool can_line_break = false;
-  bool can_line_break_before_word = false;
-  bool must_line_break_before_word = false;
   int vdc = 0;
   
-  while (codepoint_i < text->codepoint_count)
+  for (i32 para_i = 0; para_i < para_count; para_i++)
   {
-    float word_advance = 0.0f;
-    i32 word_start_i = codepoint_i;
-    i32 word_end_i = codepoint_i;
-    bool can_line_break_before_next_word = false;
-    bool must_line_break_before_next_word = false;
-    float grapheme_advances[GRAPHEME_BREAK_COUNT];
-    i32 grapheme_breaks[GRAPHEME_BREAK_COUNT];
-    int grapheme_break_count = 0;
-    while (codepoint_i < text->codepoint_count)
+    float cursor_x = 0.0f;
+    int codepoint_i = paras[para_i].para_start_i;
+    i32 line_start_i = codepoint_i;
+    i32 line_end_i = codepoint_i;
+    bool last_line_break_valid = false;
+    i32 last_line_break_i = codepoint_i;
+    bool can_line_break = false;
+    bool can_line_break_before_word = false;
+    bool must_line_break_before_word = false;
+
+    while (codepoint_i <= paras[para_i].para_end_i)
     {
-      BreakerResult res = BreakerAdvance(&brk, ud);
-
-      i32 glyphs_per_codepoint = 0;
-      LkGlyph* codepoint_glyph_p = glyphs[codepoint_i];
-      while (codepoint_glyph_p != NULL)
+      float word_advance = 0.0f;
+      float max_word_width = 0.0f;
+      float max_word_x_offset = 0.0f;
+      i32 word_start_i = codepoint_i;
+      i32 word_end_i = codepoint_i;
+      bool can_line_break_before_next_word = false;
+      bool must_line_break_before_next_word = false;
+      float grapheme_advances[GRAPHEME_BREAK_COUNT];
+      i32 grapheme_breaks[GRAPHEME_BREAK_COUNT];
+      int grapheme_break_count = 0;
+      while (codepoint_i <= paras[para_i].para_end_i)
       {
-        word_advance += codepoint_glyph_p->x_advance;
-        glyphs_per_codepoint++;
-        codepoint_glyph_p = codepoint_glyph_p->next;
-      }
-      
-      if (res.gbrk == GBRK_BRK &&
-          grapheme_break_count < GRAPHEME_BREAK_COUNT &&
-          glyphs_per_codepoint > 0)
-      {
-        grapheme_breaks[grapheme_break_count] = codepoint_i;
-        grapheme_advances[grapheme_break_count] = word_advance;
-        grapheme_break_count++;
-      }
+        BreakerResult res = breaks[codepoint_i];
 
-      codepoint_i++;
-      word_end_i = codepoint_i;
-
-      if (res.wbrk == WBRK_BRK)
-      {
-        if (res.lbrk != LBRK_PRO)
-          can_line_break_before_next_word = true;
-        if (res.lbrk == LBRK_MAN)
-          must_line_break_before_next_word = true;
-        break;
-      }
-    }
-
-    bool exceeds_line = (cursor_x + word_advance) / 64.0 >= w;
-
-    // Try grapheme break
-
-    bool found_grapheme_break = false;
-    i32 grapheme_i = -1;
-
-    if (exceeds_line)
-    {
-      for (int i = 0; i < grapheme_break_count; i++)
-      {
-        if ((cursor_x + grapheme_advances[i] + font->hyphen_advance_x) / 64.0 < w)
+        i32 glyphs_per_codepoint = 0;
+        LkGlyph* codepoint_glyph_p = glyphs[codepoint_i];
+        while (codepoint_glyph_p != NULL)
         {
-          LkGlyph* focus_glyph = glyphs[grapheme_breaks[i]];
-          while (focus_glyph != NULL && focus_glyph->next != NULL)
-            focus_glyph = focus_glyph->next;
-          if (focus_glyph == NULL) continue;
-          LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
-          if (!aglyph.canuse_hyphen) continue;
-          found_grapheme_break = true;
-          grapheme_i = grapheme_breaks[i];
+          float bitmap_left = font->glyphs[codepoint_glyph_p->glyph_index].bitmap_left;
+          float bitmap_width = font->glyphs[codepoint_glyph_p->glyph_index].bitmap_width;
+          word_advance += codepoint_glyph_p->x_advance;
+          max_word_x_offset = MaxF32(codepoint_glyph_p->x_offset, max_word_x_offset);
+          max_word_width = MaxF32(bitmap_width + bitmap_left, max_word_width);
+          glyphs_per_codepoint++;
+          codepoint_glyph_p = codepoint_glyph_p->next;
+        }
+        
+        if (res.gbrk == GBRK_BRK &&
+            grapheme_break_count < GRAPHEME_BREAK_COUNT &&
+            glyphs_per_codepoint > 0)
+        {
+          grapheme_breaks[grapheme_break_count] = codepoint_i;
+          grapheme_advances[grapheme_break_count] = word_advance;
+          grapheme_break_count++;
+        }
+
+        codepoint_i++;
+        word_end_i = codepoint_i;
+
+        if (res.wbrk == WBRK_BRK)
+        {
+          if (res.lbrk != LBRK_PRO)
+            can_line_break_before_next_word = true;
+          if (res.lbrk == LBRK_MAN)
+            must_line_break_before_next_word = true;
+          break;
         }
       }
-    }
 
-    // Try word break
+      bool exceeds_line = (cursor_x + word_advance + max_word_x_offset) / 64.0 + max_word_width >= w;
 
-    if (must_line_break_before_word || (!found_grapheme_break &&
-        can_line_break && exceeds_line && can_line_break_before_word))
-    {
-      o_lines[(*o_line_count)++] = (LkLine){line_start_i, line_end_i, false};
-      line_start_i = word_start_i;
-      cursor_x = 0.0f;
-      cursor_y += font->line_gap;
-      can_line_break = false;
-    }
-    else
-      can_line_break = true;
-      
-    line_end_i = word_end_i;
-    can_line_break_before_word = can_line_break_before_next_word;
-    must_line_break_before_word = must_line_break_before_next_word;
+      // Try grapheme break
 
-    for (i32 codepoint_j = word_start_i; codepoint_j < word_end_i; codepoint_j++)
-    {
-      LkGlyph* focus_glyph = glyphs[codepoint_j];
-      while (focus_glyph != NULL && focus_glyph->next != NULL)
+      bool found_grapheme_break = false;
+      i32 grapheme_i = -1;
+
+      if (exceeds_line)
       {
-        cursor_x += focus_glyph->x_advance;
-        focus_glyph = focus_glyph->next;
+        for (int i = 0; i < grapheme_break_count; i++)
+        {
+          if (grapheme_breaks[i] + 1 < word_end_i &&
+              (cursor_x + grapheme_advances[i] + font->hyphen_advance_x) / 64.0 < w)
+          {
+            LkGlyph* focus_glyph = glyphs[grapheme_breaks[i]];
+            while (focus_glyph != NULL && focus_glyph->next != NULL)
+              focus_glyph = focus_glyph->next;
+            if (focus_glyph == NULL) continue;
+            LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
+            if (!aglyph.canuse_hyphen) continue;
+            found_grapheme_break = true;
+            grapheme_i = grapheme_breaks[i];
+          }
+        }
       }
-      if (focus_glyph == NULL) continue;
-      LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
-      cursor_x += (found_grapheme_break &&
-                    grapheme_i == codepoint_j) ?
-                    aglyph.x_advance_hyphen :
-                    focus_glyph->x_advance;
-      if (found_grapheme_break && grapheme_i == codepoint_j)
+
+      // Try word break
+
+      if (must_line_break_before_word || (!found_grapheme_break &&
+          exceeds_line && last_line_break_valid))
       {
-        o_lines[(*o_line_count)++] = (LkLine){line_start_i, grapheme_i+1, true};
-        line_start_i = grapheme_i + 1;
-        line_end_i = word_end_i;
+        o_lines[(*o_line_count)++] = (LkLine){line_start_i, last_line_break_i, paras[para_i].para_level, cursor_x, false};
+        last_line_break_valid = false;
+        line_start_i = word_start_i;
         cursor_x = 0.0f;
         cursor_y += font->line_gap;
         can_line_break = false;
       }
+      else
+        can_line_break = true;
+        
+      line_end_i = word_end_i;
+      can_line_break_before_word = can_line_break_before_next_word;
+      must_line_break_before_word = must_line_break_before_next_word;
+
+      // BAD: Can only move to the last work break if we can't grapheme break this word..
+      //  Should also update last_line_break_i with grapheme breaks
+
+      if (can_line_break_before_next_word && can_line_break)
+      {
+        last_line_break_valid = true;
+        last_line_break_i = line_end_i;
+      }
+
+      for (i32 codepoint_j = word_start_i; codepoint_j < word_end_i; codepoint_j++)
+      {
+        LkGlyph* focus_glyph = glyphs[codepoint_j];
+        while (focus_glyph != NULL && focus_glyph->next != NULL)
+        {
+          cursor_x += focus_glyph->x_advance;
+          focus_glyph = focus_glyph->next;
+        }
+        if (focus_glyph == NULL) continue;
+        LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
+        cursor_x += (found_grapheme_break &&
+                      grapheme_i == codepoint_j) ?
+                      aglyph.x_advance_hyphen :
+                      focus_glyph->x_advance;
+        if (found_grapheme_break && grapheme_i == codepoint_j)
+        {
+          o_lines[(*o_line_count)++] = (LkLine){line_start_i, grapheme_i+1, paras[para_i].para_level, cursor_x, true};
+          line_start_i = grapheme_i + 1;
+          line_end_i = word_end_i;
+          last_line_break_valid = false;
+          cursor_x = 0.0f;
+          cursor_y += font->line_gap;
+          can_line_break = false;
+        }
+      }
     }
+    o_lines[(*o_line_count)++] = (LkLine){line_start_i, line_end_i, paras[para_i].para_level, cursor_x, false};
+    last_line_break_valid = false;
   }
-  o_lines[(*o_line_count)++] = (LkLine){line_start_i, line_end_i, false};
+  free(breaks);
 }
 
 void lkShapeText(
@@ -372,10 +402,19 @@ void lkShapeText(
   }
 }
 
+static bool IsL1Class(BIDIC bidic)
+{
+  return (bidic == BIDIC_FSI &&
+          bidic == BIDIC_LRI &&
+          bidic == BIDIC_RLI &&
+          bidic == BIDIC_PDI);
+}
+
 void lkLayoutText(
       LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
+      i32* levels,
       LkGlyph** glyphs,
       i32 line_count,
       LkLine* lines,
@@ -385,18 +424,96 @@ void lkLayoutText(
       LkVertexDescriptor_Text* o_vd,
       i32* o_vd_count)
 {
-  // TODO: Not implementing L1, L2, L3, L4. 
-  // L2 is required for proper RTL
-  // Probably need at least L1 as well
-
   i32 vdc = 0;
   float cursor_x = 0.0;
   float cursor_y = 0.0;
   LkFontAtlasGlyph aglyph = {0};
   for (i32 line_i = 0; line_i < line_count; line_i++)
   {
+    i32 line_codepoint_count = lines[line_i].end_i - lines[line_i].start_i;
+
+    // L1
+
+    i32* level_line = (i32*)calloc(line_codepoint_count, sizeof(i32));
+    BidiUnit* units = (BidiUnit*)calloc(line_codepoint_count, sizeof(BidiUnit));
     for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
     {
+      level_line[codepoint_i - lines[line_i].start_i] = levels[codepoint_i];
+      units[codepoint_i - lines[line_i].start_i] = BidiUnitCreate(text->codepoints[codepoint_i], ud);
+    }
+    bool reset_fsi_lri_rli_pdi = true;
+    for (i32 line_codepoint_i = line_codepoint_count - 1; line_codepoint_i >= 0; line_codepoint_i--)
+    {
+      if (IsL1Class(units[line_codepoint_i].bidic) && reset_fsi_lri_rli_pdi)
+      {
+        level_line[line_codepoint_i] = lines[line_i].para_level;
+      }
+      else if (units[line_codepoint_i].bidic == BIDIC_B &&
+                units[line_codepoint_i].bidic == BIDIC_S)
+      {
+        level_line[line_codepoint_i] = lines[line_i].para_level;
+        reset_fsi_lri_rli_pdi = true;
+      }
+      else
+      {
+        reset_fsi_lri_rli_pdi = false;
+      }
+    }
+
+    // L2
+
+    i32* codepoint_orders = (i32*)calloc(line_codepoint_count, sizeof(i32));
+    for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
+    {
+      codepoint_orders[codepoint_i - lines[line_i].start_i] = codepoint_i;
+    }
+    for (i32 level_i = g_bidi_max_depth + 2; level_i > 0; level_i--)
+    {
+      i32 focus = 0;
+      while (focus < line_codepoint_count)
+      {
+        if (level_line[focus] < level_i)
+        {
+          focus++;
+          continue;
+        }
+        assert(level_line[focus] == level_i);
+        i32 block_start_i = focus;
+        i32 block_end_i = focus;
+        while (focus < line_codepoint_count && level_line[focus] == level_i)
+        {
+          block_end_i = focus;
+          focus++;
+        }
+        i32 rfocus = block_start_i;
+		
+		// Reverse block of contiguous glyphs at the same level
+		
+        while (block_end_i + block_start_i - rfocus > rfocus)
+        {
+          // Swap
+
+          i32 a = codepoint_orders[rfocus];
+          i32 b = codepoint_orders[block_end_i + block_start_i - rfocus];
+          codepoint_orders[rfocus] = b;
+          codepoint_orders[block_end_i + block_start_i - rfocus] = a;
+          rfocus++;
+        }
+        for (i32 block_i = block_start_i; block_i <= block_end_i; block_i++)
+        {
+          level_line[block_i] = level_i - 1;
+        }
+      }
+    }
+
+    free(level_line);
+    free(units);
+
+    // NOTE: Not implementing L3, L4. Are they required or implicitly handled by HarfBuzz??
+
+    for (i32 codepoint_order_i = 0; codepoint_order_i < line_codepoint_count; codepoint_order_i++)
+    {
+      i32 codepoint_i = codepoint_orders[codepoint_order_i];
       LkGlyph* focus_glyph = glyphs[codepoint_i];
       while (focus_glyph != NULL)
       {
@@ -437,6 +554,7 @@ void lkLayoutText(
     }
     cursor_x = 0.0f;
     cursor_y += font->line_gap;
+    free(codepoint_orders);
   }
   *o_vd_count = vdc;
 }

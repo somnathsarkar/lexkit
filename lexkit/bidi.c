@@ -4,15 +4,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-typedef struct
-{
-  BIDIC bidic;
-  u32   bidipb;
-  BIDIPBT bidipbt;
-  BIDIC bidic_orig;
-} BidiUnit;
-
-static BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
+BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
 {
   BidiUnit ret = {0};
   ret.bidic = BIDIC_L;
@@ -39,7 +31,7 @@ static BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
   return ret;
 }
 
-static const i32 g_bidi_max_depth = 125; // Fixed by Unicode, guaranteed to never change
+const i32 g_bidi_max_depth = 125; // Fixed by Unicode, guaranteed to never change
 static const i32 g_bracket_stack_size = 63; // Unicode constant
 
 typedef enum
@@ -74,7 +66,8 @@ static bool IsX6BidiClass(BIDIC bidic)
 static LevelRun LevelRunFromIndex(
     i32* levels,
     i32 start_i,
-    i32 end_i)
+    i32 end_i,
+    i32 para_level)
 {
   LevelRun lr = {start_i, end_i, start_i, end_i};
   bool valid_found = false;
@@ -666,6 +659,7 @@ static void LevelRunSplit(
     i32* levels, 
     i32 para_start_i,
     i32 para_end_i,
+    i32 para_level,
     i32 *o_level_run_count,
     LevelRun** o_level_runs)
 {
@@ -674,7 +668,7 @@ static void LevelRunSplit(
   i32 focus_i = para_start_i;
   while (focus_i <= para_end_i)
   {
-    LevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i);
+    LevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i, para_level);
     focus_i = lr.end_i + 1;
     level_run_count++;
   }
@@ -683,7 +677,7 @@ static void LevelRunSplit(
   focus_i = para_start_i;
   while (focus_i <= para_end_i)
   {
-    LevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i);
+    LevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i, para_level);
     (*o_level_runs)[level_run_i++] = lr;
     focus_i = lr.end_i + 1;
   }
@@ -1039,7 +1033,7 @@ static void lkSplitBidiRunsParagraph(
   // X10
   i32 lrun_count = -1;
   LevelRun *lruns = NULL;
-  LevelRunSplit(io_level, para_start_i, para_end_i, &lrun_count, &lruns);
+  LevelRunSplit(io_level, para_start_i, para_end_i, para_level, &lrun_count, &lruns);
 
   // Build isolating run sequences
   bool* lrun_used = (bool*)calloc(lrun_count, sizeof(bool));
@@ -1207,16 +1201,23 @@ void lkSplitBidiRuns(
     LkUnicodeData* ud,
     i32 paragraph_count,
     Paragraph* paragraphs,
+    i32** o_levels,
     i32* o_level_run_count,
     LevelRun** o_level_runs)
 {
   assert(*o_level_run_count == -1);
   assert(*o_level_runs == NULL);
+  assert(o_levels != NULL && *o_levels == NULL);
+
+  // BB: Fixed size list, need memory rework
+
+  *o_level_run_count = 0;
+  *o_level_runs = (LevelRun*)calloc(512, sizeof(LevelRun));
 
   BidiUnit *units = (BidiUnit*)calloc(len_codepoints, sizeof(BidiUnit));
   for (i32 i = 0; i < len_codepoints; i++)
     units[i] = BidiUnitCreate(codepoints[i], ud);
-  i32* levels = (i32*)calloc(len_codepoints, sizeof(i32));
+  *o_levels = (i32*)calloc(len_codepoints, sizeof(i32));
   i32* matching_isolate = (i32*)calloc(len_codepoints, sizeof(i32));
   for (i32 para_i = 0; para_i < paragraph_count; para_i++)
   {
@@ -1227,9 +1228,26 @@ void lkSplitBidiRuns(
           paragraphs[para_i].para_start_i,
           paragraphs[para_i].para_end_i,
           paragraphs[para_i].para_level,
-          levels,
+          *o_levels,
           matching_isolate);
-  }
 
-  LevelRunSplit(levels, 0, len_codepoints - 1, o_level_run_count, o_level_runs);
+      // BB: Revisit after memory rework
+
+      i32 para_level_run_count = -1;
+      LevelRun* para_level_runs = NULL;
+
+      LevelRunSplit(
+          *o_levels,
+          paragraphs[para_i].para_start_i,
+          paragraphs[para_i].para_end_i,
+          paragraphs[para_i].para_level,
+          &para_level_run_count,
+          &para_level_runs);
+
+      for (i32 lrun_i = 0; lrun_i < para_level_run_count; lrun_i++)
+      {
+        (*o_level_runs)[*o_level_run_count + lrun_i] = para_level_runs[lrun_i];
+      }
+      *o_level_run_count += para_level_run_count;
+  }
 }

@@ -462,7 +462,10 @@ typedef struct
   GBRK  gbrk;
 } BreakerResult;
 
+struct LkText;
+
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
 BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
+BreakerResult* lkGetBreaks(const struct LkText* text, LkUnicodeData* ud);
 
 #endif

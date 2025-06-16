@@ -187,8 +187,9 @@ int main() {
   i32 para_count = -1;
   Paragraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
+  i32* levels = NULL;
   lkSplitParagraphs(text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
-  lkSplitBidiRuns(text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &level_run_count, &level_runs);
+  lkSplitBidiRuns(text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(&font, &text, level_run_count, level_runs, &glyphs);
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -286,8 +287,8 @@ int main() {
 
       i32 vdc = 0;
       i32 line_count = -1;
-      lkSplitLines(&ud, &font, &text, glyphs, w, h, &line_count, lines);
-      lkLayoutText(&ud, &font, &text, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
+      lkSplitLines(&ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count, lines);
+      lkLayoutText(&ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(

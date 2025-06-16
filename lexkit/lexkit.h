@@ -47,11 +47,13 @@ typedef struct
   float line_gap;
 } LkFont;
 
-typedef struct
+struct LkText
 {
   u32 codepoint_count;
   u32* codepoints;
-} LkText;
+};
+
+typedef struct LkText LkText;
 
 struct LkGlyph
 {
@@ -70,6 +72,8 @@ typedef struct
 {
   i32 start_i;
   i32 end_i;
+  i32 para_level;
+  float cursor_x;
   bool hyphen_end;
 } LkLine;
 
@@ -86,6 +90,8 @@ void lkSplitLines(
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
+    i32 para_count,
+    Paragraph* paras,
     i32 w,
     i32 h,
     i32* o_line_count,
@@ -94,6 +100,7 @@ void lkLayoutText(
       LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
+      i32* levels,
       LkGlyph** glyphs,
       i32 line_count,
       LkLine* lines,
