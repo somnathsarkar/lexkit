@@ -175,6 +175,7 @@ void lkSplitLines(
   for (i32 para_i = 0; para_i < para_count; para_i++)
   {
     float cursor_x = 0.0f;
+    float cursor_x_before_last_line_break_i = 0.0f;
     int codepoint_i = paras[para_i].para_start_i;
     i32 line_start_i = codepoint_i;
     i32 line_end_i = codepoint_i;
@@ -266,10 +267,11 @@ void lkSplitLines(
       if (must_line_break_before_word || (!found_grapheme_break &&
           exceeds_line && last_line_break_valid))
       {
-        o_lines[(*o_line_count)++] = (LkLine){line_start_i, last_line_break_i, paras[para_i].para_level, cursor_x, false};
+        o_lines[(*o_line_count)++] = (LkLine){line_start_i, last_line_break_i, paras[para_i].para_level, cursor_x_before_last_line_break_i, false};
         last_line_break_valid = false;
-        line_start_i = word_start_i;
-        cursor_x = 0.0f;
+        line_start_i = last_line_break_i;
+        cursor_x = MaxF32(0.0f, cursor_x - cursor_x_before_last_line_break_i);
+        cursor_x_before_last_line_break_i = cursor_x; 
         cursor_y += font->line_gap;
         can_line_break = false;
       }
@@ -280,13 +282,17 @@ void lkSplitLines(
       can_line_break_before_word = can_line_break_before_next_word;
       must_line_break_before_word = must_line_break_before_next_word;
 
-      // BAD: Can only move to the last work break if we can't grapheme break this word..
-      //  Should also update last_line_break_i with grapheme breaks
-
       if (can_line_break_before_next_word && can_line_break)
       {
         last_line_break_valid = true;
         last_line_break_i = line_end_i;
+        cursor_x_before_last_line_break_i = cursor_x;
+      }
+      else if (can_line_break && found_grapheme_break)
+      {
+        last_line_break_valid = true;
+        last_line_break_i = grapheme_i + 1;
+        cursor_x_before_last_line_break_i = cursor_x;
       }
 
       for (i32 codepoint_j = word_start_i; codepoint_j < word_end_i; codepoint_j++)
@@ -295,21 +301,27 @@ void lkSplitLines(
         while (focus_glyph != NULL && focus_glyph->next != NULL)
         {
           cursor_x += focus_glyph->x_advance;
+          if (codepoint_j < last_line_break_i)
+            cursor_x_before_last_line_break_i += focus_glyph->x_advance;
           focus_glyph = focus_glyph->next;
         }
         if (focus_glyph == NULL) continue;
         LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
-        cursor_x += (found_grapheme_break &&
-                      grapheme_i == codepoint_j) ?
-                      aglyph.x_advance_hyphen :
-                      focus_glyph->x_advance;
+        float cursor_x_advance = (found_grapheme_break &&
+                                  grapheme_i == codepoint_j) ?
+                                  aglyph.x_advance_hyphen :
+                                  focus_glyph->x_advance;
+        cursor_x += cursor_x_advance;
+        if (codepoint_j < last_line_break_i)
+          cursor_x_before_last_line_break_i += cursor_x_advance;
         if (found_grapheme_break && grapheme_i == codepoint_j)
         {
-          o_lines[(*o_line_count)++] = (LkLine){line_start_i, grapheme_i+1, paras[para_i].para_level, cursor_x, true};
+          o_lines[(*o_line_count)++] = (LkLine){line_start_i, grapheme_i + 1, paras[para_i].para_level, cursor_x, true};
           line_start_i = grapheme_i + 1;
           line_end_i = word_end_i;
           last_line_break_valid = false;
           cursor_x = 0.0f;
+          cursor_x_before_last_line_break_i = 0.0f;
           cursor_y += font->line_gap;
           can_line_break = false;
         }
