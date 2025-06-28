@@ -1,9 +1,11 @@
 #ifndef __LEXKIT__
 #define __LEXKIT__
 
+#include <lexkit/alloc.h>
 #include <lexkit/types.h>
 #include <lexkit/break.h>
 #include <lexkit/bidi.h>
+#include <lexkit/sizes.h>
 
 typedef struct
 {
@@ -77,15 +79,17 @@ typedef struct
   bool hyphen_end;
 } LkLine;
 
-void lkCreateFont(const char* cstr_path, i32 font_size, LkFont* o_font);
-void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
+void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont* o_font);
+void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
 void lkShapeText(
+    LkArena* arena,
     LkFont* font,
     LkText* text,
     i32 lrun_count,
     LevelRun* lruns,
     LkGlyph*** o_glyphs);
 void lkSplitLines(
+    LkArena* arena,
     LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
@@ -97,6 +101,7 @@ void lkSplitLines(
     i32* o_line_count,
     LkLine* o_lines);
 void lkLayoutText(
+      LkArena* arena,
       LkUnicodeData* ud,
       LkFont* font,
       LkText* text,

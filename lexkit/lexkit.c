@@ -10,7 +10,7 @@
 
 #define GRAPHEME_BREAK_COUNT 16
 
-void lkCreateFont(const char* cstr_path, i32 font_size, LkFont *o_font)
+void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *o_font)
 {
   hb_blob_t *blob = hb_blob_create_from_file(cstr_path);
   hb_face_t *face = hb_face_create(blob, 0);
@@ -26,8 +26,8 @@ void lkCreateFont(const char* cstr_path, i32 font_size, LkFont *o_font)
   int cursor_x = 2;
   int cursor_y = 2;
   int cursor_y_max = 0;
-  o_font->buffer = calloc(4096 * 4096, sizeof(u8));
-  o_font->glyphs = calloc(2000, sizeof(LkFontAtlasGlyph));
+  o_font->buffer = APushArray(arena, u8, 4096 * 4096);
+  o_font->glyphs = APushArray(arena, LkFontAtlasGlyph, 2000);
 
   for(int i = 0; i < 2000; i++)
   {
@@ -127,7 +127,7 @@ void lkCreateFont(const char* cstr_path, i32 font_size, LkFont *o_font)
   o_font->line_gap = ftface->size->metrics.height;
 }
 
-void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
+void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
 {
   hb_buffer_t *buf;
   buf = hb_buffer_create();
@@ -137,7 +137,7 @@ void lkCreateText(LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
   o_text->codepoint_count = 0;
   hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->codepoint_count);
 
-  o_text->codepoints = (u32*) malloc(sizeof(u32) * o_text->codepoint_count);
+  o_text->codepoints = APushArray(arena, u32, o_text->codepoint_count);
   for (int i = 0; i < o_text->codepoint_count; i++)
     o_text->codepoints[i] = glyph_info[i].codepoint;
 }
@@ -148,6 +148,7 @@ float MaxF32(float a, float b)
 }
 
 void lkSplitLines(
+    LkArena* arena,
     LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
@@ -334,6 +335,7 @@ void lkSplitLines(
 }
 
 void lkShapeText(
+    LkArena* arena,
     LkFont* font,
     LkText* text,
     i32 lrun_count,
@@ -342,7 +344,7 @@ void lkShapeText(
 {
   assert(o_glyphs != NULL);
   assert(*o_glyphs == NULL);
-  *o_glyphs = (LkGlyph**)calloc(text->codepoint_count, sizeof(LkGlyph*));
+  *o_glyphs = APushArray(arena, LkGlyph*, text->codepoint_count);
   for (i32 lrun_i = 0; lrun_i < lrun_count; lrun_i++)
   {
     LevelRun lrun = lruns[lrun_i];
@@ -376,7 +378,7 @@ void lkShapeText(
         LkGlyph** focus = &(*o_glyphs)[i];
         while(gi >= 0 && glyph_info[gi].cluster == i)
         {
-          LkGlyph* new_glyph = (LkGlyph*)calloc(1, sizeof(LkGlyph));
+          LkGlyph* new_glyph = APush(arena, LkGlyph);
           new_glyph->glyph_index = glyph_info[gi].codepoint;
           new_glyph->x_advance = glyph_pos[gi].x_advance;
           new_glyph->y_advance = glyph_pos[gi].y_advance;
@@ -397,7 +399,7 @@ void lkShapeText(
         LkGlyph** focus = &(*o_glyphs)[i];
         while(gi < glyph_count && glyph_info[gi].cluster == i)
         {
-          LkGlyph* new_glyph = (LkGlyph*)calloc(1, sizeof(LkGlyph));
+          LkGlyph* new_glyph = APush(arena, LkGlyph);
           new_glyph->glyph_index = glyph_info[gi].codepoint;
           new_glyph->x_advance = glyph_pos[gi].x_advance;
           new_glyph->y_advance = glyph_pos[gi].y_advance;
@@ -423,6 +425,7 @@ static bool IsL1Class(BIDIC bidic)
 }
 
 void lkLayoutText(
+      LkArena* arena,
       LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
@@ -436,18 +439,20 @@ void lkLayoutText(
       LkVertexDescriptor_Text* o_vd,
       i32* o_vd_count)
 {
+  LkArena* scratch = arena->alt;
   i32 vdc = 0;
   float cursor_x = 0.0;
   float cursor_y = 0.0;
   LkFontAtlasGlyph aglyph = {0};
   for (i32 line_i = 0; line_i < line_count; line_i++)
   {
+    u64 scratch_line_pos = scratch->pos;
     i32 line_codepoint_count = lines[line_i].end_i - lines[line_i].start_i;
 
     // L1
 
-    i32* level_line = (i32*)calloc(line_codepoint_count, sizeof(i32));
-    BidiUnit* units = (BidiUnit*)calloc(line_codepoint_count, sizeof(BidiUnit));
+    i32* level_line = APushArray(scratch, i32, line_codepoint_count);
+    BidiUnit* units = APushArray(scratch, BidiUnit, line_codepoint_count);
     for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
     {
       level_line[codepoint_i - lines[line_i].start_i] = levels[codepoint_i];
@@ -474,7 +479,7 @@ void lkLayoutText(
 
     // L2
 
-    i32* codepoint_orders = (i32*)calloc(line_codepoint_count, sizeof(i32));
+    i32* codepoint_orders = APushArray(scratch, i32, line_codepoint_count);
     for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
     {
       codepoint_orders[codepoint_i - lines[line_i].start_i] = codepoint_i;
@@ -517,9 +522,6 @@ void lkLayoutText(
         }
       }
     }
-
-    free(level_line);
-    free(units);
 
     // NOTE: Not implementing L3, L4. Are they required or implicitly handled by HarfBuzz??
 
@@ -566,7 +568,7 @@ void lkLayoutText(
     }
     cursor_x = 0.0f;
     cursor_y += font->line_gap;
-    free(codepoint_orders);
+    lkArenaRestore(scratch, scratch_line_pos);
   }
   *o_vd_count = vdc;
 }

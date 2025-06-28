@@ -179,10 +179,11 @@ int main() {
   ReleaseDC(hwnd, hdc);
   ShowWindow(hwnd, SW_SHOW);
 
+  LkArena* arena = lkArenaCreate(Megabytes(64));
   LkFont font;
-  lkCreateFont("C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
+  lkCreateFont(arena, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
   LkText text;
-  lkCreateText(&font, cstr, len_cstr, &text);
+  lkCreateText(arena, &font, cstr, len_cstr, &text);
   i32 level_run_count = -1;
   LevelRun* level_runs = NULL;
   i32 para_count = -1;
@@ -191,7 +192,7 @@ int main() {
   i32* levels = NULL;
   lkSplitParagraphs(text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
   lkSplitBidiRuns(text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
-  lkShapeText(&font, &text, level_run_count, level_runs, &glyphs);
+  lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   GLuint tex;
@@ -288,8 +289,8 @@ int main() {
 
       i32 vdc = 0;
       i32 line_count = -1;
-      lkSplitLines(&ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count, lines);
-      lkLayoutText(&ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
+      lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count, lines);
+      lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(
