@@ -1,3 +1,4 @@
+#include <lexkit/alloc.h>
 #include <lexkit/bidi.h>
 #include <lexkit/break.h>
 
@@ -163,12 +164,16 @@ static bool IsNI(const BIDIC bidic)
 }
 
 static void ResolveIsolatingRunSequence(
+    LkArena* arena,
     i32* levels,
     BidiUnit* units,
     LevelRun* lruns,
     i32* irun_lrun_idxs,
     IsolatingRunSequence irun)
 {
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+
   i32 embedding_level = lruns[irun_lrun_idxs[irun.lrun_start_i]].level;
   BIDIC matching_class = (embedding_level & 1) ?
                           BIDIC_R :
@@ -360,9 +365,9 @@ static void ResolveIsolatingRunSequence(
     i32 unit_i;
   } BracketStackItem;
 
-  BracketPair* bp = (BracketPair*)calloc(max_bracket_pairs, sizeof(BracketPair));
+  BracketPair* bp = APushArray(scratch, BracketPair, max_bracket_pairs);
   i32 bracket_count = 0;
-  BracketStackItem* bracket_stack = (BracketStackItem*)calloc(g_bracket_stack_size, sizeof(BracketStackItem));
+  BracketStackItem* bracket_stack = APushArray(scratch, BracketStackItem, g_bracket_stack_size);
   i32 bracket_sp = 0;
   bool stack_overflow = false;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
@@ -406,7 +411,7 @@ static void ResolveIsolatingRunSequence(
   qsort_s(bp, bracket_count, sizeof(BracketPair), CmpBracketPair, NULL);
 
   // Whether a class was assigned to the matching bracket pair
-  bool* assigned_class = (bool*)calloc(bracket_count, sizeof(bool));    
+  bool* assigned_class = APushArray(scratch, bool, bracket_count);
 
   for (i32 bracket_i = 0; bracket_i < bracket_count; bracket_i++)
   {
@@ -653,9 +658,12 @@ static void ResolveIsolatingRunSequence(
       }
     }
   }
+
+  lkArenaRestore(scratch, scratch_pos);
 }
   
 static void LevelRunSplit(
+    LkArena* arena,
     i32* levels, 
     i32 para_start_i,
     i32 para_end_i,
@@ -672,7 +680,7 @@ static void LevelRunSplit(
     focus_i = lr.end_i + 1;
     level_run_count++;
   }
-  *o_level_runs = (LevelRun*)calloc(level_run_count, sizeof(LevelRun));
+  *o_level_runs = APushArray(arena, LevelRun, level_run_count);
   i32 level_run_i = 0;
   focus_i = para_start_i;
   while (focus_i <= para_end_i)
@@ -685,6 +693,7 @@ static void LevelRunSplit(
 }
 
 static void lkSplitBidiRunsParagraph(
+    LkArena* arena,
     BidiUnit* units,
     i32 len_units,
     LkUnicodeData* ud,
@@ -694,10 +703,12 @@ static void lkSplitBidiRunsParagraph(
     i32* io_level,
     i32* io_matching_isolate)
 {
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
 
   // X1
 
-  BidiStatus *stack = (BidiStatus*)calloc(g_bidi_max_depth + 2, sizeof(BidiStatus));
+  BidiStatus *stack = APushArray(scratch, BidiStatus, g_bidi_max_depth + 2);
   i32 sp = 0;
   stack[sp++] = (BidiStatus){para_level, DIROVR_Neutral, false};
   i32 overflow_isolate_count = 0;
@@ -1033,12 +1044,12 @@ static void lkSplitBidiRunsParagraph(
   // X10
   i32 lrun_count = -1;
   LevelRun *lruns = NULL;
-  LevelRunSplit(io_level, para_start_i, para_end_i, para_level, &lrun_count, &lruns);
+  LevelRunSplit(arena, io_level, para_start_i, para_end_i, para_level, &lrun_count, &lruns);
 
   // Build isolating run sequences
-  bool* lrun_used = (bool*)calloc(lrun_count, sizeof(bool));
-  IsolatingRunSequence* iruns = (IsolatingRunSequence*)calloc(lrun_count, sizeof(IsolatingRunSequence));
-  i32* irun_lrun_idxs = (i32*)calloc(lrun_count, sizeof(i32));
+  bool* lrun_used = APushArray(scratch, bool, lrun_count);
+  IsolatingRunSequence* iruns = APushArray(scratch, IsolatingRunSequence, lrun_count);
+  i32* irun_lrun_idxs = APushArray(scratch, i32, lrun_count);
   i32 irun_count = 0;
 
   i32 irun_i = 0;
@@ -1118,16 +1129,19 @@ static void lkSplitBidiRunsParagraph(
   }
 
   for (i32 i = 0; i < irun_count; i++)
-    ResolveIsolatingRunSequence(io_level, units, lruns, irun_lrun_idxs, iruns[i]);
+    ResolveIsolatingRunSequence(arena, io_level, units, lruns, irun_lrun_idxs, iruns[i]);
 
   for (i32 i = para_start_i; i <= para_end_i; i++)
   {
     if (io_level[i] == -1)
       io_level[i] = para_level;
   }
+
+  lkArenaRestore(scratch, scratch_pos);
 }
 
 void lkSplitParagraphs(
+    LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     LkUnicodeData* ud,
@@ -1137,16 +1151,19 @@ void lkSplitParagraphs(
   assert(*o_paragraph_count == -1);
   assert(*o_paragraphs == NULL);
 
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+
   // TODO: Need reallocable list
 
   *o_paragraph_count = 0;
-  *o_paragraphs = (Paragraph*)calloc(10, sizeof(Paragraph));
+  *o_paragraphs = APushArray(arena, Paragraph, 10);
 
   i32 para_start_i = 0;
   bool para_level_found = false;
   i32 para_level = 0;
   i32 isolate_count = 0;
-  BidiUnit *units = (BidiUnit*)calloc(len_codepoints, sizeof(BidiUnit));
+  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
   for (i32 i = 0; i < len_codepoints; i++)
     units[i] = BidiUnitCreate(codepoints[i], ud);
   for (i32 i = 0; i < len_codepoints; i++)
@@ -1193,9 +1210,12 @@ void lkSplitParagraphs(
     (*o_paragraphs)[*o_paragraph_count] = para;
     (*o_paragraph_count)++;
   }
+
+  lkArenaRestore(scratch, scratch_pos);
 }
 
 void lkSplitBidiRuns(
+    LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     LkUnicodeData* ud,
@@ -1209,19 +1229,23 @@ void lkSplitBidiRuns(
   assert(*o_level_runs == NULL);
   assert(o_levels != NULL && *o_levels == NULL);
 
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+
   // BB: Fixed size list, need memory rework
 
   *o_level_run_count = 0;
-  *o_level_runs = (LevelRun*)calloc(512, sizeof(LevelRun));
+  *o_level_runs = APushArray(arena, LevelRun, 512);
 
-  BidiUnit *units = (BidiUnit*)calloc(len_codepoints, sizeof(BidiUnit));
+  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
   for (i32 i = 0; i < len_codepoints; i++)
     units[i] = BidiUnitCreate(codepoints[i], ud);
-  *o_levels = (i32*)calloc(len_codepoints, sizeof(i32));
-  i32* matching_isolate = (i32*)calloc(len_codepoints, sizeof(i32));
+  *o_levels = APushArray(arena, i32, len_codepoints);
+  i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
   for (i32 para_i = 0; para_i < paragraph_count; para_i++)
   {
       lkSplitBidiRunsParagraph(
+          arena,
           units,
           len_codepoints,
           ud,
@@ -1237,6 +1261,7 @@ void lkSplitBidiRuns(
       LevelRun* para_level_runs = NULL;
 
       LevelRunSplit(
+          arena,
           *o_levels,
           paragraphs[para_i].para_start_i,
           paragraphs[para_i].para_end_i,
@@ -1250,4 +1275,6 @@ void lkSplitBidiRuns(
       }
       *o_level_run_count += para_level_run_count;
   }
+
+  lkArenaRestore(scratch, scratch_pos);
 }

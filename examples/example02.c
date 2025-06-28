@@ -87,8 +87,10 @@ int main() {
   cstr[len_cstr - 1] = '\0';
   int font_size = 72;
 
+  LkArena* arena = lkArenaCreate(Megabytes(64));
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(
+      arena,
       "C:/Code/lexkit/lexkit/LineBreakProperty.txt",
       "C:/Code/lexkit/lexkit/WordBreakProperty.txt",
       "C:/Code/lexkit/lexkit/GraphemeBreakProperty.txt",
@@ -178,7 +180,6 @@ int main() {
   ReleaseDC(hwnd, hdc);
   ShowWindow(hwnd, SW_SHOW);
 
-  LkArena* arena = lkArenaCreate(Megabytes(64));
   LkFont font;
   lkCreateFont(arena, "C:/Windows/Fonts/Arial.ttf", font_size, &font);
   LkText text;
@@ -189,8 +190,8 @@ int main() {
   Paragraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
-  lkSplitParagraphs(text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
-  lkSplitBidiRuns(text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
+  lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

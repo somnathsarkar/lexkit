@@ -223,6 +223,7 @@ static i32 CountImportantLinesEmoji(FILE* fp)
 }
 
 bool lkTryLoadUnicodeDataFromSpec(
+    LkArena* arena,
     const char* str_path_lb,
     const char* str_path_wb,
     const char* str_path_gb,
@@ -245,9 +246,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->lb_range_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->lb_range_start = (u32*)malloc(o_ud->lb_range_count * sizeof(u32));
-  o_ud->lb_range_end = (u32*)malloc(o_ud->lb_range_count * sizeof(u32));
-  o_ud->lb_range_cls = (LBC*)malloc(o_ud->lb_range_count * sizeof(LBC));
+  o_ud->lb_range_start = APushArray(arena, u32, o_ud->lb_range_count);
+  o_ud->lb_range_end = APushArray(arena, u32, o_ud->lb_range_count);
+  o_ud->lb_range_cls = APushArray(arena, LBC, o_ud->lb_range_count);
   i32 i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -289,9 +290,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->wb_range_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->wb_range_start = (u32*)malloc(o_ud->wb_range_count * sizeof(u32));
-  o_ud->wb_range_end = (u32*)malloc(o_ud->wb_range_count * sizeof(u32));
-  o_ud->wb_range_cls = (WBC*)malloc(o_ud->wb_range_count * sizeof(WBC));
+  o_ud->wb_range_start = APushArray(arena, u32, o_ud->wb_range_count);
+  o_ud->wb_range_end = APushArray(arena, u32, o_ud->wb_range_count);
+  o_ud->wb_range_cls = APushArray(arena, WBC, o_ud->wb_range_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -332,9 +333,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->gb_range_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->gb_range_start = (u32*)malloc(o_ud->gb_range_count * sizeof(u32));
-  o_ud->gb_range_end = (u32*)malloc(o_ud->gb_range_count * sizeof(u32));
-  o_ud->gb_range_cls = (GBC*)malloc(o_ud->gb_range_count * sizeof(GBC));
+  o_ud->gb_range_start = APushArray(arena, u32, o_ud->gb_range_count);
+  o_ud->gb_range_end = APushArray(arena, u32, o_ud->gb_range_count);
+  o_ud->gb_range_cls = APushArray(arena, GBC, o_ud->gb_range_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -375,8 +376,8 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->gc_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->gc_codepoint = (u32*)malloc(o_ud->gc_count * sizeof(u32));
-  o_ud->gc_cls = (GC*)malloc(o_ud->gc_count * sizeof(GC));
+  o_ud->gc_codepoint = APushArray(arena, u32, o_ud->gc_count);
+  o_ud->gc_cls = APushArray(arena, GC, o_ud->gc_count);
   for (int i = 0; i < o_ud->gc_count; i++)
     o_ud->gc_cls[i] = GC_Cn;
   i32 i_codepoint = 0;
@@ -404,9 +405,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->eaw_range_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->eaw_range_start = (u32*)malloc(o_ud->eaw_range_count * sizeof(u32));
-  o_ud->eaw_range_end = (u32*)malloc(o_ud->eaw_range_count * sizeof(u32));
-  o_ud->eaw_range_cls = (EAW*)malloc(o_ud->eaw_range_count * sizeof(EAW));
+  o_ud->eaw_range_start = APushArray(arena, u32, o_ud->eaw_range_count);
+  o_ud->eaw_range_end = APushArray(arena, u32, o_ud->eaw_range_count);
+  o_ud->eaw_range_cls = APushArray(arena, EAW, o_ud->eaw_range_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -447,9 +448,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->incb_range_count = CountImportantLinesInCB(fp);
   rewind(fp);
-  o_ud->incb_range_start = (u32*)malloc(o_ud->incb_range_count * sizeof(u32));
-  o_ud->incb_range_end = (u32*)malloc(o_ud->incb_range_count * sizeof(u32));
-  o_ud->incb_range_cls = (INCB*)malloc(o_ud->incb_range_count * sizeof(INCB));
+  o_ud->incb_range_start = APushArray(arena, u32, o_ud->incb_range_count);
+  o_ud->incb_range_end = APushArray(arena, u32, o_ud->incb_range_count);
+  o_ud->incb_range_cls = APushArray(arena, INCB, o_ud->incb_range_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -490,8 +491,8 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->ep_range_count = CountImportantLinesEmoji(fp);
   rewind(fp);
-  o_ud->ep_range_start = (u32*)malloc(o_ud->ep_range_count * sizeof(u32));
-  o_ud->ep_range_end = (u32*)malloc(o_ud->ep_range_count * sizeof(u32));
+  o_ud->ep_range_start = APushArray(arena, u32, o_ud->ep_range_count);
+  o_ud->ep_range_end = APushArray(arena, u32, o_ud->ep_range_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -523,9 +524,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->bidi_range_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->bidi_range_start = (u32*)malloc(o_ud->bidi_range_count * sizeof(u32));
-  o_ud->bidi_range_end = (u32*)malloc(o_ud->bidi_range_count * sizeof(u32));
-  o_ud->bidi_range_cls = (BIDIC*)malloc(o_ud->bidi_range_count * sizeof(BIDIC));
+  o_ud->bidi_range_start = APushArray(arena, u32, o_ud->bidi_range_count);
+  o_ud->bidi_range_end = APushArray(arena, u32, o_ud->bidi_range_count);
+  o_ud->bidi_range_cls = APushArray(arena, BIDIC, o_ud->bidi_range_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -566,9 +567,9 @@ bool lkTryLoadUnicodeDataFromSpec(
     return false;
   o_ud->bidipb_count = CountImportantLines(fp);
   rewind(fp);
-  o_ud->bidipb_key = (u32*)malloc(o_ud->bidipb_count * sizeof(u32));
-  o_ud->bidipb_value = (u32*)malloc(o_ud->bidipb_count * sizeof(u32));
-  o_ud->bidipbt = (BIDIPBT*)malloc(o_ud->bidipb_count * sizeof(BIDIPBT));
+  o_ud->bidipb_key = APushArray(arena, u32, o_ud->bidipb_count);
+  o_ud->bidipb_value = APushArray(arena, u32, o_ud->bidipb_count);
+  o_ud->bidipbt = APushArray(arena, BIDIPBT, o_ud->bidipb_count);
   i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
@@ -1880,9 +1881,9 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   return res;
 }
 
-BreakerResult* lkGetBreaks(const struct LkText* text, LkUnicodeData* ud)
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud)
 {
-  BreakerResult* breaks = (BreakerResult*)calloc(text->codepoint_count, sizeof(BreakerResult));
+  BreakerResult* breaks = APushArray(arena, BreakerResult, text->codepoint_count);
   Breaker brk = {0};
   BreakerCreate(text->codepoints, text->codepoint_count, &brk);
   for (i32 i = 0; i < text->codepoint_count; i++)

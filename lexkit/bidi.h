@@ -1,6 +1,7 @@
 #ifndef __LEXKIT_BIDI__
 #define __LEXKIT_BIDI__
 
+#include <lexkit/alloc.h>
 #include <lexkit/types.h>
 #include <lexkit/break.h>
 
@@ -33,6 +34,7 @@ BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud);
 extern const i32 g_bidi_max_depth; // Fixed by Unicode, guaranteed to never change
 
 void lkSplitParagraphs(
+    LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     LkUnicodeData* ud,
@@ -40,6 +42,7 @@ void lkSplitParagraphs(
     Paragraph** o_paragraphs);
 
 void lkSplitBidiRuns(
+    LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     LkUnicodeData* ud,

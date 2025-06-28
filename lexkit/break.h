@@ -1,6 +1,7 @@
 #ifndef __LEXKIT_BREAK__
 #define __LEXKIT_BREAK__
 
+#include <lexkit/alloc.h>
 #include <lexkit/types.h>
 
 // Unicode General Categories
@@ -403,6 +404,7 @@ typedef struct
 } LkUnicodeData;
 
 bool lkTryLoadUnicodeDataFromSpec(
+    LkArena* arena,
     const char* str_path_lb,
     const char* str_path_wb,
     const char* str_path_gb,
@@ -466,6 +468,6 @@ struct LkText;
 
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
 BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
-BreakerResult* lkGetBreaks(const struct LkText* text, LkUnicodeData* ud);
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud);
 
 #endif

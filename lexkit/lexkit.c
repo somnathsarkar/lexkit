@@ -164,11 +164,14 @@ void lkSplitLines(
   assert(o_lines != NULL);
   assert(*o_line_count == -1);
 
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+
   // TODO: When realloc lists are added remove this hardcoded line limit
 
   *o_line_count = 0;
 
-  BreakerResult* breaks = lkGetBreaks(text, ud);
+  BreakerResult* breaks = lkGetBreaks(scratch, text, ud);
 
   float cursor_y = 0.0f;
   int vdc = 0;
@@ -331,7 +334,8 @@ void lkSplitLines(
     o_lines[(*o_line_count)++] = (LkLine){line_start_i, line_end_i, paras[para_i].para_level, cursor_x, false};
     last_line_break_valid = false;
   }
-  free(breaks);
+
+  lkArenaRestore(scratch, scratch_pos);
 }
 
 void lkShapeText(
