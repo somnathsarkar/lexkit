@@ -21,7 +21,7 @@ typedef struct
   i32 para_start_i;
   i32 para_end_i;
   i32 para_level;
-} Paragraph;
+} LkParagraph;
 
 typedef struct
 {
@@ -41,7 +41,7 @@ void lkSplitParagraphs(
     i32 len_codepoints,
     LkUnicodeData* ud,
     i32* o_paragraph_count,
-    Paragraph** o_paragraphs);
+    LkParagraph** o_paragraphs);
 
 void lkSplitBidiRuns(
     LkArena* arena,
@@ -49,7 +49,7 @@ void lkSplitBidiRuns(
     i32 len_codepoints,
     LkUnicodeData* ud,
     i32 paragraph_count,
-    Paragraph* paragraphs,
+    LkParagraph* paragraphs,
     i32** o_levels,
     i32* o_level_run_count,
     LkLevelRun** o_level_runs);

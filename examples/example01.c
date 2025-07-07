@@ -188,7 +188,7 @@ int main() {
   i32 level_run_count = -1;
   LkLevelRun* level_runs = NULL;
   i32 para_count = -1;
-  Paragraph* paragraphs = NULL;
+  LkParagraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
   lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);

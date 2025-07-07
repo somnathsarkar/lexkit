@@ -154,7 +154,7 @@ void lkSplitLines(
     LkText* text,
     LkGlyph** glyphs,
     i32 para_count,
-    Paragraph* paras,
+    LkParagraph* paras,
     i32 w,
     i32 h,
     i32* o_line_count,

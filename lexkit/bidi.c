@@ -1146,7 +1146,7 @@ void lkSplitParagraphs(
     i32 len_codepoints,
     LkUnicodeData* ud,
     i32* o_paragraph_count,
-    Paragraph** o_paragraphs)
+    LkParagraph** o_paragraphs)
 {
   assert(*o_paragraph_count == -1);
   assert(*o_paragraphs == NULL);
@@ -1157,7 +1157,7 @@ void lkSplitParagraphs(
   // TODO: Need reallocable list
 
   *o_paragraph_count = 0;
-  *o_paragraphs = APushArray(arena, Paragraph, 10);
+  *o_paragraphs = APushArray(arena, LkParagraph, 10);
 
   i32 para_start_i = 0;
   bool para_level_found = false;
@@ -1195,7 +1195,7 @@ void lkSplitParagraphs(
     }
     else if (unit.bidic == BIDIC_B)
     {
-      Paragraph para = { para_start_i, i, para_level };
+      LkParagraph para = { para_start_i, i, para_level };
       (*o_paragraphs)[*o_paragraph_count] = para;
       (*o_paragraph_count)++;
       para_start_i = i + 1;
@@ -1206,7 +1206,7 @@ void lkSplitParagraphs(
   }
   if (len_codepoints > 0 && para_start_i < len_codepoints)
   {
-    Paragraph para = { para_start_i, len_codepoints - 1, para_level };
+    LkParagraph para = { para_start_i, len_codepoints - 1, para_level };
     (*o_paragraphs)[*o_paragraph_count] = para;
     (*o_paragraph_count)++;
   }
@@ -1229,7 +1229,7 @@ void lkSplitBidiRuns(
     i32 len_codepoints,
     LkUnicodeData* ud,
     i32 paragraph_count,
-    Paragraph* paragraphs,
+    LkParagraph* paragraphs,
     i32** o_levels,
     i32* o_level_run_count,
     LkLevelRun** o_level_runs)
