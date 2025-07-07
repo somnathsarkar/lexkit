@@ -1044,7 +1044,7 @@ static void lkSplitBidiRunsParagraph(
   // X10
   i32 lrun_count = -1;
   LkLevelRun *lruns = NULL;
-  LevelRunSplit(arena, io_level, para_start_i, para_end_i, para_level, &lrun_count, &lruns);
+  LevelRunSplit(scratch, io_level, para_start_i, para_end_i, para_level, &lrun_count, &lruns);
 
   // Build isolating run sequences
   bool* lrun_used = APushArray(scratch, bool, lrun_count);
@@ -1129,7 +1129,7 @@ static void lkSplitBidiRunsParagraph(
   }
 
   for (i32 i = 0; i < irun_count; i++)
-    ResolveIsolatingRunSequence(arena, io_level, units, lruns, irun_lrun_idxs, iruns[i]);
+    ResolveIsolatingRunSequence(scratch, io_level, units, lruns, irun_lrun_idxs, iruns[i]);
 
   for (i32 i = para_start_i; i <= para_end_i; i++)
   {
@@ -1245,7 +1245,7 @@ void lkSplitBidiRuns(
   for (i32 para_i = 0; para_i < paragraph_count; para_i++)
   {
       lkSplitBidiRunsParagraph(
-          arena,
+          scratch,
           units,
           len_codepoints,
           ud,
@@ -1261,7 +1261,7 @@ void lkSplitBidiRuns(
       LkLevelRun* para_level_runs = NULL;
 
       LevelRunSplit(
-          arena,
+          scratch,
           *o_levels,
           paragraphs[para_i].para_start_i,
           paragraphs[para_i].para_end_i,
