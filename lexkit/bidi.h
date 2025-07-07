@@ -16,12 +16,15 @@ struct LkLevelRun
 
 typedef struct LkLevelRun LkLevelRun;
 
-typedef struct
+struct LkParagraph
 {
   i32 para_start_i;
   i32 para_end_i;
   i32 para_level;
-} LkParagraph;
+  struct LkParagraph* next;
+};
+
+typedef struct LkParagraph LkParagraph;
 
 typedef struct
 {
