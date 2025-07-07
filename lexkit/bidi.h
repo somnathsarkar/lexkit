@@ -5,14 +5,16 @@
 #include <lexkit/types.h>
 #include <lexkit/break.h>
 
-typedef struct
+struct LkLevelRun
 {
   i32 start_i;
   i32 end_i;
   i32 valid_start_i;
   i32 valid_end_i;
   i32 level;
-} LevelRun;
+};
+
+typedef struct LkLevelRun LkLevelRun;
 
 typedef struct
 {
@@ -50,6 +52,6 @@ void lkSplitBidiRuns(
     Paragraph* paragraphs,
     i32** o_levels,
     i32* o_level_run_count,
-    LevelRun** o_level_runs);
+    LkLevelRun** o_level_runs);
 
 #endif // __LEXKIT_BIDI__

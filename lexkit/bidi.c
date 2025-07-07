@@ -64,13 +64,13 @@ static bool IsX6BidiClass(BIDIC bidic)
           (bidic != BIDIC_PDI);
 }
 
-static LevelRun LevelRunFromIndex(
+static LkLevelRun LevelRunFromIndex(
     i32* levels,
     i32 start_i,
     i32 end_i,
     i32 para_level)
 {
-  LevelRun lr = {start_i, end_i, start_i, end_i};
+  LkLevelRun lr = {start_i, end_i, start_i, end_i};
   bool valid_found = false;
   i32 current_level = -1;
   for (i32 i = start_i; i <= end_i; i++)
@@ -167,7 +167,7 @@ static void ResolveIsolatingRunSequence(
     LkArena* arena,
     i32* levels,
     BidiUnit* units,
-    LevelRun* lruns,
+    LkLevelRun* lruns,
     i32* irun_lrun_idxs,
     IsolatingRunSequence irun)
 {
@@ -187,7 +187,7 @@ static void ResolveIsolatingRunSequence(
   BIDIC cls_prev_str = irun.sos;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -224,7 +224,7 @@ static void ResolveIsolatingRunSequence(
   // W3
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -239,7 +239,7 @@ static void ResolveIsolatingRunSequence(
   cls_prev = irun.sos;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -281,7 +281,7 @@ static void ResolveIsolatingRunSequence(
   cls_prev = irun.sos;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -296,7 +296,7 @@ static void ResolveIsolatingRunSequence(
   BIDIC cls_next = irun.eos;
   for (i32 lrun_i = irun.lrun_end_i; lrun_i >= irun.lrun_start_i; lrun_i--)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_end_i; unit_i >= lrun.valid_start_i; unit_i--)
     {
       if (levels[unit_i] == -1)
@@ -311,7 +311,7 @@ static void ResolveIsolatingRunSequence(
   // W6
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -328,7 +328,7 @@ static void ResolveIsolatingRunSequence(
   cls_prev_str = irun.sos;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -354,7 +354,7 @@ static void ResolveIsolatingRunSequence(
   i32 max_bracket_pairs = 0;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     max_bracket_pairs += lrun.valid_end_i - lrun.valid_start_i + 1;
   }
   max_bracket_pairs /= 2;
@@ -372,7 +372,7 @@ static void ResolveIsolatingRunSequence(
   bool stack_overflow = false;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (units[unit_i].bidic == BIDIC_ON)
@@ -422,7 +422,7 @@ static void ResolveIsolatingRunSequence(
 
     for (i32 lrun_i = bp[bracket_i].lrun_start_i; lrun_i <= bp[bracket_i].lrun_end_i; lrun_i++)
     {
-      LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+      LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
       i32 unit_start_i = (lrun_i == bp[bracket_i].lrun_start_i) ? 
                                     bp[bracket_i].unit_start_i :
                                     lrun.valid_start_i;
@@ -461,7 +461,7 @@ static void ResolveIsolatingRunSequence(
 
       for (i32 lrun_i = bp[bracket_i].lrun_start_i; lrun_i >= irun.lrun_start_i; lrun_i--)
       {
-        LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+        LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
         i32 unit_start_i = (lrun_i == bp[bracket_i].lrun_start_i) ? 
                                       bp[bracket_i].unit_start_i :
                                       lrun.valid_end_i;
@@ -492,7 +492,7 @@ static void ResolveIsolatingRunSequence(
   BIDIC adjacent_changed_class = BIDIC_L;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       // TODO: This could be faster, full linear search isn't required
@@ -525,7 +525,7 @@ static void ResolveIsolatingRunSequence(
   adjacent_changed_class = BIDIC_L;
   for (i32 lrun_i = irun.lrun_end_i; lrun_i >= irun.lrun_start_i; lrun_i--)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_end_i; unit_i >= lrun.valid_end_i; unit_i--)
     {
       // TODO: This could be faster, full linear search isn't required
@@ -559,7 +559,7 @@ static void ResolveIsolatingRunSequence(
   i32 strong_class_segment_i = lruns[irun.lrun_start_i].valid_start_i;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1)
@@ -614,7 +614,7 @@ static void ResolveIsolatingRunSequence(
 
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (IsNI(units[unit_i].bidic))
@@ -626,7 +626,7 @@ static void ResolveIsolatingRunSequence(
 
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
-    LevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
+    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
       if (levels[unit_i] == -1) continue;
@@ -669,23 +669,23 @@ static void LevelRunSplit(
     i32 para_end_i,
     i32 para_level,
     i32 *o_level_run_count,
-    LevelRun** o_level_runs)
+    LkLevelRun** o_level_runs)
 {
   assert(*o_level_runs == NULL);
   i32 level_run_count = 0;
   i32 focus_i = para_start_i;
   while (focus_i <= para_end_i)
   {
-    LevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i, para_level);
+    LkLevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i, para_level);
     focus_i = lr.end_i + 1;
     level_run_count++;
   }
-  *o_level_runs = APushArray(arena, LevelRun, level_run_count);
+  *o_level_runs = APushArray(arena, LkLevelRun, level_run_count);
   i32 level_run_i = 0;
   focus_i = para_start_i;
   while (focus_i <= para_end_i)
   {
-    LevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i, para_level);
+    LkLevelRun lr = LevelRunFromIndex(levels, focus_i, para_end_i, para_level);
     (*o_level_runs)[level_run_i++] = lr;
     focus_i = lr.end_i + 1;
   }
@@ -1043,7 +1043,7 @@ static void lkSplitBidiRunsParagraph(
 
   // X10
   i32 lrun_count = -1;
-  LevelRun *lruns = NULL;
+  LkLevelRun *lruns = NULL;
   LevelRunSplit(arena, io_level, para_start_i, para_end_i, para_level, &lrun_count, &lruns);
 
   // Build isolating run sequences
@@ -1223,7 +1223,7 @@ void lkSplitBidiRuns(
     Paragraph* paragraphs,
     i32** o_levels,
     i32* o_level_run_count,
-    LevelRun** o_level_runs)
+    LkLevelRun** o_level_runs)
 {
   assert(*o_level_run_count == -1);
   assert(*o_level_runs == NULL);
@@ -1235,7 +1235,7 @@ void lkSplitBidiRuns(
   // BB: Fixed size list, need memory rework
 
   *o_level_run_count = 0;
-  *o_level_runs = APushArray(arena, LevelRun, 512);
+  *o_level_runs = APushArray(arena, LkLevelRun, 512);
 
   BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
   for (i32 i = 0; i < len_codepoints; i++)
@@ -1258,7 +1258,7 @@ void lkSplitBidiRuns(
       // BB: Revisit after memory rework
 
       i32 para_level_run_count = -1;
-      LevelRun* para_level_runs = NULL;
+      LkLevelRun* para_level_runs = NULL;
 
       LevelRunSplit(
           arena,

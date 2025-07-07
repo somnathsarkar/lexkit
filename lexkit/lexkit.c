@@ -343,7 +343,7 @@ void lkShapeText(
     LkFont* font,
     LkText* text,
     i32 lrun_count,
-    LevelRun* lruns,
+    LkLevelRun* lruns,
     LkGlyph*** o_glyphs)
 {
   assert(o_glyphs != NULL);
@@ -351,7 +351,7 @@ void lkShapeText(
   *o_glyphs = APushArray(arena, LkGlyph*, text->codepoint_count);
   for (i32 lrun_i = 0; lrun_i < lrun_count; lrun_i++)
   {
-    LevelRun lrun = lruns[lrun_i];
+    LkLevelRun lrun = lruns[lrun_i];
 
     hb_buffer_t *buf;
     buf = hb_buffer_create();

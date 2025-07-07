@@ -86,7 +86,7 @@ void lkShapeText(
     LkFont* font,
     LkText* text,
     i32 lrun_count,
-    LevelRun* lruns,
+    LkLevelRun* lruns,
     LkGlyph*** o_glyphs);
 void lkSplitLines(
     LkArena* arena,

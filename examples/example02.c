@@ -185,7 +185,7 @@ int main() {
   LkText text;
   lkCreateText(arena, &font, cstr, len_cstr, &text);
   i32 level_run_count = -1;
-  LevelRun* level_runs = NULL;
+  LkLevelRun* level_runs = NULL;
   i32 para_count = -1;
   Paragraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
