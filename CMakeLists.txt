@@ -16,6 +16,7 @@ target_link_libraries(lexkit PUBLIC harfbuzz.lib freetyped.lib)
 add_executable(example01)
 target_sources(
   example01 PRIVATE
+  examples/example_opengl.c
   examples/example01.c
   extern/glad/gl.c
   extern/glad/wgl.c)
@@ -47,6 +48,7 @@ target_shaders(example01 PRIVATE fullscreen.frag fullscreen.vert text.frag text.
 add_executable(example02)
 target_sources(
   example02 PRIVATE
+  examples/example_opengl.c
   examples/example02.c
   extern/glad/gl.c
   extern/glad/wgl.c)
