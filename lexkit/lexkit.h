@@ -70,14 +70,16 @@ struct LkGlyph
 
 typedef struct LkGlyph LkGlyph;
 
-typedef struct
+struct LkLine
 {
   i32 start_i;
   i32 end_i;
   i32 para_level;
   float cursor_x;
   bool hyphen_end;
-} LkLine;
+};
+
+typedef struct LkLine LkLine;
 
 void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont* o_font);
 void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
@@ -88,7 +90,7 @@ void lkShapeText(
     i32 lrun_count,
     LkLevelRun* lruns,
     LkGlyph*** o_glyphs);
-void lkSplitLines(
+LkLine* lkSplitLines(
     LkArena* arena,
     LkUnicodeData* ud,
     LkFont* font,
@@ -98,8 +100,7 @@ void lkSplitLines(
     LkParagraph* paras,
     i32 w,
     i32 h,
-    i32* o_line_count,
-    LkLine* o_lines);
+    i32* o_line_count);
 void lkLayoutText(
       LkArena* arena,
       LkUnicodeData* ud,

@@ -147,7 +147,17 @@ float MaxF32(float a, float b)
   return (a < b) ? b : a;
 }
 
-void lkSplitLines(
+// TODO: Linked list rework
+
+struct LkLineTmp
+{
+  LkLine line;
+  struct LkLineTmp* next;
+};
+
+typedef struct LkLineTmp LkLineTmp;
+
+LkLine* lkSplitLines(
     LkArena* arena,
     LkUnicodeData* ud,
     LkFont* font,
@@ -157,17 +167,15 @@ void lkSplitLines(
     LkParagraph* paras,
     i32 w,
     i32 h,
-    i32* o_line_count,
-    LkLine* o_lines)
+    i32* o_line_count)
 {
   assert(o_line_count != NULL);
-  assert(o_lines != NULL);
   assert(*o_line_count == -1);
 
   LkArena* scratch = arena->alt;
   u64 scratch_pos = scratch->pos;
-
-  // TODO: When realloc lists are added remove this hardcoded line limit
+  LkLineTmp* o_line_tmp = NULL;
+  LkLineTmp** new_line = &o_line_tmp;
 
   *o_line_count = 0;
 
@@ -272,7 +280,11 @@ void lkSplitLines(
       if (must_line_break_before_word || (!found_grapheme_break &&
           exceeds_line && last_line_break_valid))
       {
-        o_lines[(*o_line_count)++] = (LkLine){line_start_i, last_line_break_i, para_focus->para_level, cursor_x_before_last_line_break_i, false};
+        *new_line = APush(scratch, LkLineTmp);
+        (*new_line)->line = (LkLine){line_start_i, last_line_break_i, para_focus->para_level, cursor_x_before_last_line_break_i, false};
+        (*new_line)->next = NULL;
+        new_line = &((*new_line)->next);
+        (*o_line_count)++;
         last_line_break_valid = false;
         line_start_i = last_line_break_i;
         cursor_x = MaxF32(0.0f, cursor_x - cursor_x_before_last_line_break_i);
@@ -321,7 +333,11 @@ void lkSplitLines(
           cursor_x_before_last_line_break_i += cursor_x_advance;
         if (found_grapheme_break && grapheme_i == codepoint_j)
         {
-          o_lines[(*o_line_count)++] = (LkLine){line_start_i, grapheme_i + 1, para_focus->para_level, cursor_x, true};
+          *new_line = APush(scratch, LkLineTmp);
+          (*new_line)->line = (LkLine){line_start_i, grapheme_i + 1, para_focus->para_level, cursor_x, true};
+          (*new_line)->next = NULL;
+          new_line = &((*new_line)->next);
+          (*o_line_count)++;
           line_start_i = grapheme_i + 1;
           line_end_i = word_end_i;
           last_line_break_valid = false;
@@ -332,12 +348,24 @@ void lkSplitLines(
         }
       }
     }
-    o_lines[(*o_line_count)++] = (LkLine){line_start_i, line_end_i, para_focus->para_level, cursor_x, false};
+    *new_line = APush(scratch, LkLineTmp);
+    (*new_line)->line = (LkLine){line_start_i, line_end_i, para_focus->para_level, cursor_x, false};
+    (*new_line)->next = NULL;
+    new_line = &((*new_line)->next);
+    (*o_line_count)++;
     last_line_break_valid = false;
     para_focus = para_focus->next;
   }
 
+  LkLine* o_lines = APushArray(arena, LkLine, *o_line_count);
+  LkLineTmp* line_tmp_focus = o_line_tmp;
+  for (i32 i = 0; i < *o_line_count; i++)
+  {
+    o_lines[i] = line_tmp_focus->line;
+    line_tmp_focus = line_tmp_focus->next;
+  }
   lkArenaRestore(scratch, scratch_pos);
+  return o_lines;
 }
 
 void lkShapeText(
@@ -548,6 +576,12 @@ void lkLayoutText(
           aglyph.u_max,
           aglyph.v_max
         };
+
+        // TODO: Rethink this. Need to stop outputting vds after we've exceeded height.
+        //  Probably at the lkSplitLines level.
+
+        if (vdc + 1 >= max_vd)
+          goto end;
         o_vd[vdc++] = v;
         cursor_x += (lines[line_i].hyphen_end &&
                       codepoint_i + 1 >= lines[line_i].end_i &&
@@ -570,8 +604,11 @@ void lkLayoutText(
         aglyph_hyphen.u_max,
         aglyph_hyphen.v_max
       };
+      if (vdc + 1 >= max_vd)
+        goto end;
       o_vd[vdc++] = v;
     }
+end:
     cursor_x = 0.0f;
     cursor_y += font->line_gap;
     lkArenaRestore(scratch, scratch_line_pos);

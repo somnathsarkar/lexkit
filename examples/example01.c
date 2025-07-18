@@ -160,10 +160,12 @@ int main() {
       glClearColor((float) 0x21 / 0xFF, (float) 0x21 / 0xFF, (float) 0x21 / 0xFF, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT);
 
+      u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
       i32 line_count = -1;
-      lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count, lines);
+      LkLine* lines = lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
       lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
+      lkArenaRestore(arena, frame_pos);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(

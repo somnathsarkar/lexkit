@@ -22,7 +22,7 @@ int main() {
   int64_t timestamp_res = qpf.QuadPart;
 
   FILE* fp = NULL;
-  errno_t err_fopen = fopen_s(&fp, "example_bidi.txt", "r");
+  errno_t err_fopen = fopen_s(&fp, "pg3160.txt", "r");
   assert(!err_fopen);
   char* cstr = NULL;
   fseek(fp, 0, SEEK_END);
@@ -189,4 +189,5 @@ int main() {
   }
   return 0;
 }
+
 

@@ -55,3 +55,14 @@ target_sources(
 target_include_directories(example02 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(example02 PRIVATE Opengl32.lib lexkit)
 target_shaders(example02 PRIVATE fullscreen.frag fullscreen.vert text.frag text.vert)
+
+add_executable(example03)
+target_sources(
+  example03 PRIVATE
+  examples/example_opengl.c
+  examples/example03.c
+  extern/glad/gl.c
+  extern/glad/wgl.c)
+target_include_directories(example03 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(example03 PRIVATE Opengl32.lib lexkit)
+target_shaders(example03 PRIVATE fullscreen.frag fullscreen.vert text.frag text.vert)

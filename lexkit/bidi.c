@@ -391,7 +391,7 @@ static void ResolveIsolatingRunSequence(
         }
         else if (units[unit_i].bidipbt == BIDIPBT_Close)
         {
-          for (i32 bracket_i = bracket_sp - 1; bracket_i >= 0; bracket_i++)
+          for (i32 bracket_i = bracket_sp - 1; bracket_i >= 0; bracket_i--)
           {
             if (units[bracket_stack[bracket_i].unit_i].bidipb == units[unit_i].bidipb)
             {
