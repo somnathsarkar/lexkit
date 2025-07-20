@@ -11,12 +11,24 @@ LRESULT wndproc(HWND hwnd, UINT umsg, WPARAM wparam, LPARAM lparam)
   return DefWindowProcA(hwnd, umsg, wparam, lparam);
 }
 
-int64_t timestamp() {
+int64_t timestamp_win64()
+{
   LARGE_INTEGER res = {0};
   QueryPerformanceCounter(&res);
   return res.QuadPart;
 }
 
+int64_t timestamp_win64_res()
+{
+  static int64_t res = -1;
+  if (res == -1)
+  {
+    LARGE_INTEGER qpf = {0};
+    QueryPerformanceFrequency(&qpf);
+    res = qpf.QuadPart;
+  }
+  return res;
+}
 void* glad_load_func(const char* name)
 {
   void *p = (void*)wglGetProcAddress(name);

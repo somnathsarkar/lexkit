@@ -1,3 +1,5 @@
+#define MEASURE_PERF 1
+
 #include <examples/example_opengl.h>
 
 #include <generated/shaders/fullscreen.vert.h>
@@ -7,6 +9,7 @@
 
 #include <lexkit/lexkit.h>
 #include <lexkit/bidi.h>
+#include <lexkit/perf.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -14,13 +17,8 @@
 #include <stdlib.h>
 
 LkVertexDescriptor_Text vd[10240] = {0};
-LkLine lines[512] = {0};
 
 int main() {
-  LARGE_INTEGER qpf = {0};
-  QueryPerformanceFrequency(&qpf);
-  int64_t timestamp_res = qpf.QuadPart;
-
   FILE* fp = NULL;
   errno_t err_fopen = fopen_s(&fp, "pg3160.txt", "r");
   assert(!err_fopen);
@@ -50,7 +48,9 @@ int main() {
 
   LkFont font;
   lkCreateFont(arena, "C:/Windows/Fonts/Arial.ttf", font_size, &font);
+#if MEASURE_PERF
   int64_t ts_setup = timestamp();
+#endif
   LkText text;
   lkCreateText(arena, &font, cstr, len_cstr, &text);
   i32 level_run_count = -1;
@@ -62,7 +62,9 @@ int main() {
   lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
   lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
-  printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res);
+#if MEASURE_PERF
+  printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
+#endif
 
   HWND hwnd = create_window();
 
@@ -128,8 +130,9 @@ int main() {
   glVertexAttribDivisor(1, 1);
   glEnableVertexAttribArray(1);
 
-  int64_t ts = timestamp();
+  int64_t ts = timestamp_win64();
   int64_t ts_acc = 0;
+  bool first_render = false;
 
   int quit = 0;
   while (!quit)
@@ -145,11 +148,11 @@ int main() {
       TranslateMessage(&msg);
       DispatchMessageA(&msg);
     }
-    int64_t ts_new = timestamp();
+    int64_t ts_new = timestamp_win64();
     int64_t dts = ts_new - ts;
     ts = ts_new;
     ts_acc += dts;
-    if (ts_acc >= timestamp_res / 60)
+    if (ts_acc >= timestamp_win64_res() / 60)
     {
       RECT client_rect = {0};
       GetClientRect(hwnd, &client_rect);
@@ -162,9 +165,27 @@ int main() {
       u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
       i32 line_count = -1;
+#if MEASURE_PERF
+      int64_t ts_frame_start = timestamp();
+#endif
       LkLine* lines = lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+#if MEASURE_PERF
+      int64_t ts_split_lines = timestamp();
+#endif
       lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
+#if MEASURE_PERF
+      int64_t ts_layout_text = timestamp();
+#endif
       lkArenaRestore(arena, frame_pos);
+#if MEASURE_PERF
+      if (!first_render) 
+      {
+        printf("lkSplitLines: %g ms\nlkLayoutText: %g ms\n",
+                (ts_split_lines - ts_frame_start) * 1000.0 / timestamp_res(),
+                (ts_layout_text - ts_split_lines) * 1000.0 / timestamp_res());
+        first_render = true;
+      }
+#endif
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(

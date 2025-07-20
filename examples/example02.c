@@ -7,6 +7,7 @@
 
 #include <lexkit/lexkit.h>
 #include <lexkit/bidi.h>
+#include <lexkit/perf.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -14,13 +15,8 @@
 #include <stdlib.h>
 
 LkVertexDescriptor_Text vd[10240] = {0};
-LkLine lines[512] = {0};
 
 int main() {
-  LARGE_INTEGER qpf = {0};
-  QueryPerformanceFrequency(&qpf);
-  int64_t timestamp_res = qpf.QuadPart;
-
   FILE* fp = NULL;
   errno_t err_fopen = fopen_s(&fp, "example_bidi.txt", "r");
   assert(!err_fopen);
@@ -50,7 +46,9 @@ int main() {
 
   LkFont font;
   lkCreateFont(arena, "C:/Windows/Fonts/Arial.ttf", font_size, &font);
+#if MEASURE_PERF
   int64_t ts_setup = timestamp();
+#endif
   LkText text;
   lkCreateText(arena, &font, cstr, len_cstr, &text);
   i32 level_run_count = -1;
@@ -62,7 +60,9 @@ int main() {
   lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
   lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
-  printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res);
+#if MEASURE_PERF
+  printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
+#endif
 
   HWND hwnd = create_window();
 
@@ -128,7 +128,7 @@ int main() {
   glVertexAttribDivisor(1, 1);
   glEnableVertexAttribArray(1);
 
-  int64_t ts = timestamp();
+  int64_t ts = timestamp_win64();
   int64_t ts_acc = 0;
 
   int quit = 0;
@@ -145,11 +145,11 @@ int main() {
       TranslateMessage(&msg);
       DispatchMessageA(&msg);
     }
-    int64_t ts_new = timestamp();
+    int64_t ts_new = timestamp_win64();
     int64_t dts = ts_new - ts;
     ts = ts_new;
     ts_acc += dts;
-    if (ts_acc >= timestamp_res / 60)
+    if (ts_acc >= timestamp_win64_res() / 60)
     {
       RECT client_rect = {0};
       GetClientRect(hwnd, &client_rect);

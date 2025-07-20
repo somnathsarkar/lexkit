@@ -1,6 +1,7 @@
 #include <lexkit/lexkit.h>
 #include <lexkit/break.h>
 #include <lexkit/bidi.h>
+#include <lexkit/perf.h>
 
 #include <hb.h>
 #include <ft2build.h>
@@ -179,7 +180,18 @@ LkLine* lkSplitLines(
 
   *o_line_count = 0;
 
+#if MEASURE_PERF
+  static bool first_render = false;
+  int64_t ts = timestamp();
+#endif
   BreakerResult* breaks = lkGetBreaks(scratch, text, ud);
+#if MEASURE_PERF
+  if (!first_render)
+  {
+    printf("lkGetBreaks: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+    first_render = true;
+  }
+#endif
 
   float cursor_y = 0.0f;
   int vdc = 0;

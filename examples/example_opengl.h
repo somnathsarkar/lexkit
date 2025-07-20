@@ -6,7 +6,8 @@
 #include <lexkit/sizes.h>
 
 LRESULT wndproc(HWND hwnd, UINT umsg, WPARAM wparam, LPARAM lparam);
-i64 timestamp();
+int64_t timestamp_win64();
+int64_t timestamp_win64_res();
 void* glad_load_func(const char* name);
 GLuint create_prog(
     const unsigned char* vs, const unsigned int vs_len,

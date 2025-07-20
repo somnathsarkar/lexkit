@@ -8,6 +8,7 @@ target_sources(
   lexkit/break.c
   lexkit/bidi.c
   lexkit/sizes.c
+  lexkit/perf.c
 )
 target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
 target_link_directories(lexkit PUBLIC C:/Dev/harfbuzz-10.2.0/build/Debug C:/Dev/freetype-2.13.3/build/Debug)
