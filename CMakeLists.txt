@@ -9,10 +9,11 @@ target_sources(
   lexkit/bidi.c
   lexkit/sizes.c
   lexkit/perf.c
+  lexkit/twostep.c
 )
 target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
-target_link_directories(lexkit PUBLIC C:/Dev/harfbuzz-10.2.0/build/Debug C:/Dev/freetype-2.13.3/build/Debug)
-target_link_libraries(lexkit PUBLIC harfbuzz.lib freetyped.lib)
+target_link_directories(lexkit PUBLIC C:/Dev/harfbuzz-10.2.0/build/$(ConfigurationName) C:/Dev/freetype-2.13.3/build/$(ConfigurationName))
+target_link_libraries(lexkit PUBLIC harfbuzz.lib debug freetyped.lib optimized freetype.lib)
 
 add_executable(example01)
 target_sources(
@@ -67,3 +68,11 @@ target_sources(
 target_include_directories(example03 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(example03 PRIVATE Opengl32.lib lexkit)
 target_shaders(example03 PRIVATE fullscreen.frag fullscreen.vert text.frag text.vert)
+
+add_executable(test_twostep)
+target_sources(
+  test_twostep PRIVATE
+  examples/test_twostep.c
+)
+target_include_directories(test_twostep PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_twostep PRIVATE Opengl32.lib lexkit)

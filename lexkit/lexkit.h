@@ -93,6 +93,7 @@ void lkShapeText(
 LkLine* lkSplitLines(
     LkArena* arena,
     LkUnicodeData* ud,
+    LkUnicodeDataTwoStep* udts,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,

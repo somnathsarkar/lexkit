@@ -3,6 +3,7 @@
 
 #include <lexkit/alloc.h>
 #include <lexkit/types.h>
+#include <lexkit/twostep.h>
 
 // Unicode General Categories
 
@@ -403,6 +404,11 @@ typedef struct
   u32   bidipb_count;
 } LkUnicodeData;
 
+typedef struct
+{
+  LkTwoStep* ts_lb;
+} LkUnicodeDataTwoStep;
+
 bool lkTryLoadUnicodeDataFromSpec(
     LkArena* arena,
     const char* str_path_lb,
@@ -416,7 +422,22 @@ bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_bidipb,
     LkUnicodeData* o_ud);
 
+bool lkTryLoadUnicodeDataFromSpecTwoStep(
+    LkArena* arena,
+    const char* str_path_lb,
+    const char* str_path_wb,
+    const char* str_path_gb,
+    const char* str_path_gc,
+    const char* str_path_eaw,
+    const char* str_path_incb,
+    const char* str_path_ep,
+    const char* str_path_bidi,
+    const char* str_path_bidipb,
+    LkUnicodeData* o_ud,
+    LkUnicodeDataTwoStep* o_udts);
+
 Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);
+Glyph GetGlyphAtIndexTwoStep(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts);
 
 typedef struct
 {
@@ -464,10 +485,12 @@ typedef struct
   GBRK  gbrk;
 } BreakerResult;
 
+extern const char* g_map_lbc_str[];
+
 struct LkText;
 
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
-BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud);
+BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts);
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts);
 
 #endif

@@ -161,6 +161,7 @@ typedef struct LkLineTmp LkLineTmp;
 LkLine* lkSplitLines(
     LkArena* arena,
     LkUnicodeData* ud,
+    LkUnicodeDataTwoStep* udts,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -184,7 +185,7 @@ LkLine* lkSplitLines(
   static bool first_render = false;
   int64_t ts = timestamp();
 #endif
-  BreakerResult* breaks = lkGetBreaks(scratch, text, ud);
+  BreakerResult* breaks = lkGetBreaks(scratch, text, ud, udts);
 #if MEASURE_PERF
   if (!first_render)
   {

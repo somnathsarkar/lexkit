@@ -222,6 +222,40 @@ static i32 CountImportantLinesEmoji(FILE* fp)
   return ans;
 }
 
+bool lkTryLoadUnicodeDataFromSpecTwoStep(
+    LkArena* arena,
+    const char* str_path_lb,
+    const char* str_path_wb,
+    const char* str_path_gb,
+    const char* str_path_gc,
+    const char* str_path_eaw,
+    const char* str_path_incb,
+    const char* str_path_ep,
+    const char* str_path_bidi,
+    const char* str_path_bidipb,
+    LkUnicodeData* o_ud,
+    LkUnicodeDataTwoStep* o_udts)
+{
+  assert(o_udts != NULL);
+  bool fSuccess = lkTryLoadUnicodeDataFromSpec(
+    arena,
+    str_path_lb,
+    str_path_wb,
+    str_path_gb,
+    str_path_gc,
+    str_path_eaw,
+    str_path_incb,
+    str_path_ep,
+    str_path_bidi,
+    str_path_bidipb,
+    o_ud);
+  if (!fSuccess)
+    return false;
+  
+  o_udts->ts_lb = LkTwoStepCreate(arena, str_path_lb, g_map_lbc_str, LBC_Count);
+  return true;
+}
+
 bool lkTryLoadUnicodeDataFromSpec(
     LkArena* arena,
     const char* str_path_lb,
@@ -704,6 +738,106 @@ Glyph GetGlyphAtIndex(const u32 *codepoints, i32 len_codepoints, i32 idx, LkUnic
   return glyph;
 }
 
+Glyph GetGlyphAtIndexTwoStep(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
+{
+Glyph glyph                 = {0};
+  if (idx < 0 || idx >= len_codepoints)
+  {
+    Glyph glyph = {0};
+    return glyph;
+  }
+
+  // Get codepoint
+  
+  u32 codepoint = codepoints[idx];
+  LBC lbc   = LBC_XX;
+  WBC wbc   = WBC_XX;
+  GBC gbc   = GBC_XX;
+  EAW eaw   = EAW_Na;
+  GC  gc    = GC_Cn;
+  INCB incb = INCB_None;
+  bool extended_pictographic = false;
+
+  glyph.lbc = LkTwoStepLookup(udts->ts_lb, codepoint);
+
+  for (int i = 0; i < ud->wb_range_count; i++)
+  {
+    if (codepoint >= ud->wb_range_start[i] && codepoint <= ud->wb_range_end[i])
+    {
+      wbc = ud->wb_range_cls[i];
+      break;
+    }
+  }
+
+  for (int i = 0; i < ud->gb_range_count; i++)
+  {
+    if (codepoint >= ud->gb_range_start[i] && codepoint <= ud->gb_range_end[i])
+    {
+      gbc = ud->gb_range_cls[i];
+      break;
+    }
+  }
+
+  for (int i = 0; i < ud->eaw_range_count; i++)
+  {
+    if (codepoint >= ud->eaw_range_start[i] && codepoint <= ud->eaw_range_end[i])
+    {
+      eaw = ud->eaw_range_cls[i];
+      break;
+    }
+  }
+
+  for (int i = 0; i < ud->gc_count; i++)
+  {
+    if (codepoint == ud->gc_codepoint[i])
+    {
+      gc = ud->gc_cls[i];
+      break;
+    }
+  }
+
+  for (int i = 0; i < ud->incb_range_count; i++)
+  {
+    if (codepoint >= ud->incb_range_start[i] && codepoint <= ud->incb_range_end[i])
+    {
+      incb = ud->incb_range_cls[i];
+      break;
+    }
+  }
+
+  for (int i = 0; i < ud->ep_range_count; i++)
+  {
+    if (codepoint >= ud->ep_range_start[i] && codepoint <= ud->ep_range_end[i])
+    {
+      extended_pictographic = true;
+      break;
+    }
+  }
+
+  // LB1: Assign a line breaking class to each code point of the input.
+  //  Resolve AI, CB, CJ, SA, SG, and XX into other line breaking classes depending on criteria outside the scope of this algorithm.
+
+  if (lbc == LBC_AI || lbc == LBC_SG || lbc == LBC_XX)
+    lbc = LBC_AL;
+  else if (lbc == LBC_SA && (gc == GC_Mn || gc == GC_Mc))
+    lbc = LBC_CM;
+  else if (lbc == LBC_SA)
+    lbc = LBC_AL;
+  else if (lbc == LBC_CJ)
+    lbc = LBC_NS;
+
+  glyph.idx                   = idx;
+  glyph.codepoint             = codepoint;
+  glyph.lbc                   = lbc;
+  glyph.wbc                   = wbc;
+  glyph.gbc                   = gbc;
+  glyph.gc                    = gc;
+  glyph.eaw                   = eaw;
+  glyph.incb                  = incb;
+  glyph.extended_pictographic = extended_pictographic;
+  return glyph;
+}
+
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk)
 {
   o_brk->codepoints = codepoints;
@@ -711,7 +845,7 @@ void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk)
   o_brk->idx = -1;
 }
 
-static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
+static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts, bool* io_next, i32* io_idx_next, Glyph* o_g)
 {
   if (*io_next)
     return;
@@ -719,7 +853,7 @@ static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* 
   while ((*io_idx_next) + 1 < brk->len_codepoints)
   {
     (*io_idx_next)++;
-    (*o_g) = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, *io_idx_next, ud);
+    (*o_g) = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, *io_idx_next, ud, udts);
     if (o_g->lbc != LBC_ZWJ &&
         o_g->lbc != LBC_CM)
     {
@@ -729,7 +863,7 @@ static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* 
   }
 }
 
-static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
+static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
 {
   // LB3
 
@@ -745,7 +879,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
     return LBRK_MAN;
   }
 
-  Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud);
+  Glyph g = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud, udts);
 
   // LB5
 
@@ -839,7 +973,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
   if (g.gc == GC_Pf &&
       g.lbc == LBC_QU)
   {
-    BreakerGetNextGlyphLineBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphLineBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (!next2 || // eot
         g_next2.lbc == LBC_SP ||
         g_next2.lbc == LBC_GL ||
@@ -864,7 +998,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
   {
     if (g.lbc == LBC_IS)
     {
-      BreakerGetNextGlyphLineBreak(brk, ud, &next2, &idx_next2, &g_next2);
+      BreakerGetNextGlyphLineBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
       if (!next2 && g_next2.lbc == LBC_NU)
         return LBRK_OPT;
     }
@@ -1026,14 +1160,14 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
   if (brk->lbcx_adj == LBCX_PO &&
       g.lbc == LBC_OP)
   {
-    BreakerGetNextGlyphLineBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphLineBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (g_next2.lbc == LBC_NU)
       return LBRK_PRO;
     else if (g_next2.lbc == LBC_IS)
     {
       if (!next3)
         idx_next3 = idx_next2;
-      BreakerGetNextGlyphLineBreak(brk, ud, &next3, &idx_next3, &g_next3);
+      BreakerGetNextGlyphLineBreak(brk, ud, udts, &next3, &idx_next3, &g_next3);
       if (g_next3.lbc == LBC_NU)
         return LBRK_PRO;
     }
@@ -1049,14 +1183,14 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
   if (brk->lbcx_adj == LBCX_PR &&
       g.lbc == LBC_OP)
   {
-    BreakerGetNextGlyphLineBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphLineBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (g_next2.lbc == LBC_NU)
       return LBRK_PRO;
     else if (g_next2.lbc == LBC_IS)
     {
       if (!next3)
         idx_next3 = idx_next2;
-      BreakerGetNextGlyphLineBreak(brk, ud, &next3, &idx_next3, &g_next3);
+      BreakerGetNextGlyphLineBreak(brk, ud, udts, &next3, &idx_next3, &g_next3);
       if (g_next3.lbc == LBC_NU)
         return LBRK_PRO;
     }
@@ -1141,7 +1275,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
        g.codepoint == 0x25CC ||
        g.lbc == LBC_AS))
   {
-    BreakerGetNextGlyphLineBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphLineBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (next2 && g_next2.lbc == LBC_VF)
       return LBRK_PRO;
   }
@@ -1194,7 +1328,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
   return LBRK_OPT;
 }
 
-static void BreakerGetNextGlyphWordBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
+static void BreakerGetNextGlyphWordBreak(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts, bool* io_next, i32* io_idx_next, Glyph* o_g)
 {
   if (*io_next)
     return;
@@ -1202,7 +1336,7 @@ static void BreakerGetNextGlyphWordBreak(Breaker* brk, LkUnicodeData* ud, bool* 
   while ((*io_idx_next) + 1 < brk->len_codepoints)
   {
     (*io_idx_next)++;
-    (*o_g) = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, *io_idx_next, ud);
+    (*o_g) = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, *io_idx_next, ud, udts);
     if (o_g->wbc != WBC_CR &&
         o_g->wbc != WBC_LF &&
         o_g->wbc != WBC_Newline)
@@ -1223,7 +1357,7 @@ static bool IsAHLetterX(WBCX wbcx)
   return (wbcx == WBCX_ALetter || wbcx == WBCX_Hebrew_Letter);
 }
 
-WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
+WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
 {
   // WB2
 
@@ -1232,7 +1366,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
     return WBRK_BRK;
   }
 
-  Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud);
+  Glyph g = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud, udts);
 
   // WB3
 
@@ -1304,7 +1438,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
        g.wbc == WBC_MidNumLet ||
        g.wbc == WBC_Single_Quote)) 
   {
-    BreakerGetNextGlyphWordBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphWordBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (next2 && IsAHLetter(g_next2.wbc))
     {
       return WBRK_PRO;
@@ -1332,7 +1466,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
   if (brk->wbcx_adj == WBCX_Hebrew_Letter &&
       g.wbc == WBC_Double_Quote)
   {
-    BreakerGetNextGlyphWordBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphWordBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (next2 && g_next2.wbc == WBC_Hebrew_Letter)
     {
       return WBRK_PRO;
@@ -1386,7 +1520,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
        g.wbc == WBC_MidNumLet ||
        g.wbc == WBC_Single_Quote))
   {
-    BreakerGetNextGlyphWordBreak(brk, ud, &next2, &idx_next2, &g_next2);
+    BreakerGetNextGlyphWordBreak(brk, ud, udts, &next2, &idx_next2, &g_next2);
     if (next2 && g_next2.wbc == WBC_Numeric)
     {
       return WBRK_PRO;
@@ -1435,7 +1569,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
   return WBRK_BRK;
 }
 
-GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
+GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
 {
   // GB2
 
@@ -1444,7 +1578,7 @@ GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
     return GBRK_BRK;
   }
 
-  Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud);
+  Glyph g = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud, udts);
 
   // GB3
 
@@ -1554,7 +1688,7 @@ GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
   return GBRK_BRK;
 }
 
-BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
+BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
 {
   BreakerResult res = {0};
   
@@ -1570,7 +1704,7 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   brk->idx++;
   if (brk->idx == 0)
   {
-    Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, 0, ud);
+    Glyph g = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, 0, ud, udts);
     brk->lbcx = (LBCX) g.lbc;
     brk->lbcx_adj = brk->lbcx;
     brk->wbcx = (WBCX) g.wbc;
@@ -1610,7 +1744,7 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   }
   else
   {
-    Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx, ud);
+    Glyph g = GetGlyphAtIndexTwoStep(brk->codepoints, brk->len_codepoints, brk->idx, ud, udts);
     LBCX lbcx_new = brk->lbcx;
     LBCX s = brk->lbcx_adj;
     LBC e = g.lbc;
@@ -1868,9 +2002,9 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   }
 
 
-  LBRK lbrk = BreakerComputeLbrk(brk, ud);
-  WBRK wbrk = BreakerComputeWbrk(brk, ud);
-  GBRK gbrk = BreakerComputeGbrk(brk, ud);
+  LBRK lbrk = BreakerComputeLbrk(brk, ud, udts);
+  WBRK wbrk = BreakerComputeWbrk(brk, ud, udts);
+  GBRK gbrk = BreakerComputeGbrk(brk, ud, udts);
 
   res.glyph_idx = brk->idx;
   res.done = false; 
@@ -1881,14 +2015,14 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   return res;
 }
 
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud)
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
 {
   BreakerResult* breaks = APushArray(arena, BreakerResult, text->codepoint_count);
   Breaker brk = {0};
   BreakerCreate(text->codepoints, text->codepoint_count, &brk);
   for (i32 i = 0; i < text->codepoint_count; i++)
   {
-    breaks[i] = BreakerAdvance(&brk, ud);
+    breaks[i] = BreakerAdvance(&brk, ud, udts);
   }
   return breaks;
 }

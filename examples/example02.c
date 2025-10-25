@@ -31,7 +31,8 @@ int main() {
 
   LkArena* arena = lkArenaCreate(Megabytes(64));
   LkUnicodeData ud = {0};
-  bool ud_success = lkTryLoadUnicodeDataFromSpec(
+  LkUnicodeDataTwoStep udts = {0};
+  bool ud_success = lkTryLoadUnicodeDataFromSpecTwoStep(
       arena,
       "C:/Code/lexkit/lexkit/LineBreakProperty.txt",
       "C:/Code/lexkit/lexkit/WordBreakProperty.txt",
@@ -42,7 +43,8 @@ int main() {
       "C:/Code/lexkit/lexkit/emoji-data.txt",
       "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
       "C:/Code/lexkit/lexkit/BidiBrackets.txt",
-      &ud);
+      &ud,
+      &udts);
 
   LkFont font;
   lkCreateFont(arena, "C:/Windows/Fonts/Arial.ttf", font_size, &font);
@@ -162,7 +164,7 @@ int main() {
       u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
       i32 line_count = -1;
-      LkLine* lines = lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+      LkLine* lines = lkSplitLines(arena, &ud, &udts, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
       lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
       lkArenaRestore(arena, frame_pos);
 
