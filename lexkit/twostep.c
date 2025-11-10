@@ -36,6 +36,18 @@ static i32 CountImportantLinesC(FILE* fp)
   return ans;
 }
 
+static i32 CountImportantLinesD(FILE* fp)
+{
+  char buf[S_MAX_LINE];
+  i32 ans = 0;
+  while (fgets(buf, S_MAX_LINE, fp))   
+  {
+    if (IsHexChar(buf[0]) && strstr(buf, "Extended_Pictographic") != NULL)
+      ans++;
+  }
+  return ans;
+}
+
 typedef struct
 {
   u32 start;
@@ -196,6 +208,51 @@ static LkTwoStepSection* LkTwoStepSectionParseC(LkArena* arena, const char* file
   return sections;
 }
 
+static LkTwoStepSection* LkTwoStepSectionParseD(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, int *o_section_count)
+{
+  // Extended_Pictographic is boolean flag, so always set cls to 1
+
+  assert(o_section_count != NULL && *o_section_count == 0);
+  char buf[S_MAX_LINE];
+  char buf_cls[S_MAX_LINE];
+  FILE* fp = NULL;
+  errno_t err = fopen_s(&fp, filepath, "r");
+  if (err)
+    return false;
+  int section_count = CountImportantLinesD(fp);
+  LkTwoStepSection* sections = APushArray(arena, LkTwoStepSection, section_count);
+  rewind(fp);
+  int range_i = 0;
+  while (fgets(buf, S_MAX_LINE, fp))
+  {
+    if (!IsHexChar(buf[0]) || strstr(buf, "Extended_Pictographic") == NULL)
+      continue;
+
+    u32 range_start = 0;
+    u32 range_end = 0;
+
+    int two_parse = sscanf_s(buf, "%x..%x", &range_start, &range_end, buf_cls, S_MAX_LINE);
+    if (two_parse < 2)
+    {
+      int one_parse = sscanf_s(buf, "%x", &range_start, &buf_cls, S_MAX_LINE);
+      if (one_parse < 1)
+        return false;
+      sections[range_i].start = range_start;
+      sections[range_i].end   = range_start;
+    }
+    else
+    {
+      sections[range_i].start = range_start;
+      sections[range_i].end   = range_end;
+    }
+    sections[range_i].cls = 1;
+    range_i++;
+  }
+  fclose(fp);
+  *o_section_count = section_count;
+  return sections;
+}
+
 LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, UNIFMT unifmt)
 {
   u64 scratch_pos = lkArenaGetPos(arena->alt);
@@ -218,6 +275,12 @@ LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map
     case UNIFMT_C:
     {
       sections = LkTwoStepSectionParseC(arena->alt, filepath, map_enum_str, enum_max, enum_default, &section_count);
+      break;
+    }
+
+    case UNIFMT_D:
+    {
+      sections = LkTwoStepSectionParseD(arena->alt, filepath, map_enum_str, enum_max, enum_default, &section_count);
       break;
     }
 

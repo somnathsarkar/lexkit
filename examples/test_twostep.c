@@ -49,6 +49,16 @@ int main() {
       assert(tsl == udl);
     }
   }
+  
+  LkTwoStep* ts_ep = LkTwoStepCreate(arena, "C:/Code/lexkit/lexkit/emoji-data.txt", NULL, 2, 0, UNIFMT_D);
+  for (i32 i = 0; i < ud.ep_range_count; i++)
+  {
+    for (i32 j = ud.ep_range_start[i]; j <= ud.ep_range_end[i]; j++)
+    {
+      i32 tsl = LkTwoStepLookup(ts_ep, j);
+      assert(tsl == 1);
+    }
+  }
   return 0;
 }
 

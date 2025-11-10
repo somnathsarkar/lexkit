@@ -412,6 +412,7 @@ typedef struct
   LkTwoStep* ts_gc;
   LkTwoStep* ts_eaw;
   LkTwoStep* ts_incb;
+  LkTwoStep* ts_ep;
   LkTwoStep* ts_bidi;
 } LkUnicodeDataTwoStep;
 

@@ -258,6 +258,7 @@ bool lkTryLoadUnicodeDataFromSpecTwoStep(
   o_udts->ts_gc = LkTwoStepCreate(arena, str_path_gc, g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
   o_udts->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count, EAW_Na, UNIFMT_A);
   o_udts->ts_incb = LkTwoStepCreate(arena, str_path_incb, g_map_incb_str, INCB_Count, INCB_None, UNIFMT_C);
+  o_udts->ts_ep = LkTwoStepCreate(arena, str_path_ep, NULL, 2, 0 /* Extended_Pictographic */, UNIFMT_D);
   o_udts->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count, BIDIC_L, UNIFMT_A);
   return true;
 }
@@ -770,15 +771,7 @@ Glyph glyph                 = {0};
   gc = LkTwoStepLookup(udts->ts_gc, codepoint);
   eaw = LkTwoStepLookup(udts->ts_eaw, codepoint);
   incb = LkTwoStepLookup(udts->ts_incb, codepoint);
-
-  for (int i = 0; i < ud->ep_range_count; i++)
-  {
-    if (codepoint >= ud->ep_range_start[i] && codepoint <= ud->ep_range_end[i])
-    {
-      extended_pictographic = true;
-      break;
-    }
-  }
+  extended_pictographic = (bool)LkTwoStepLookup(udts->ts_ep, codepoint);
 
   // LB1: Assign a line breaking class to each code point of the input.
   //  Resolve AI, CB, CJ, SA, SG, and XX into other line breaking classes depending on criteria outside the scope of this algorithm.
