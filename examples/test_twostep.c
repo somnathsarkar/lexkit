@@ -38,6 +38,17 @@ int main() {
     i32 udl = ud.gc_cls[i];
     assert(tsl == udl);
   }
+  
+  LkTwoStep* ts_incb = LkTwoStepCreate(arena, "C:/Code/lexkit/lexkit/DerivedCoreProperties.txt", g_map_incb_str, INCB_Count, INCB_None, UNIFMT_C);
+  for (i32 i = 0; i < ud.incb_range_count; i++)
+  {
+    for (i32 j = ud.incb_range_start[i]; j <= ud.incb_range_end[i]; j++)
+    {
+      i32 tsl = LkTwoStepLookup(ts_incb, j);
+      i32 udl = ud.incb_range_cls[i];
+      assert(tsl == udl);
+    }
+  }
   return 0;
 }
 

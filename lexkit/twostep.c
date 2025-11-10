@@ -24,6 +24,18 @@ static i32 CountImportantLines(FILE* fp)
   return ans;
 }
 
+static i32 CountImportantLinesC(FILE* fp)
+{
+  char buf[S_MAX_LINE];
+  i32 ans = 0;
+  while (fgets(buf, S_MAX_LINE, fp))   
+  {
+    if (IsHexChar(buf[0]) && strstr(buf, "InCB") != NULL)
+      ans++;
+  }
+  return ans;
+}
+
 typedef struct
 {
   u32 start;
@@ -41,7 +53,7 @@ int CompareTwoStepSection(void* ctx, const void* a, const void* b)
   return ta->end - tb->end;
 }
 
-static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, int* o_section_count)
+static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, int* o_section_count)
 {
   assert(o_section_count != NULL && *o_section_count == 0);
   char buf[S_MAX_LINE];
@@ -78,6 +90,7 @@ static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* file
       sections[range_i].end = range_end;
     }
 
+    sections[range_i].cls = enum_default;
     for (i32 cls_i = 0; cls_i < enum_max; cls_i++)
     {
       if (strncmp(map_enum_str[cls_i], buf_cls, strnlen_s(map_enum_str[cls_i], S_MAX_LINE)) == 0)
@@ -93,7 +106,7 @@ static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* file
   return sections;
 }
 
-static LkTwoStepSection* LkTwoStepSectionParseB(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, int *o_section_count)
+static LkTwoStepSection* LkTwoStepSectionParseB(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, int *o_section_count)
 {
   assert(o_section_count != NULL && *o_section_count == 0);
   char buf[S_MAX_LINE];
@@ -115,9 +128,62 @@ static LkTwoStepSection* LkTwoStepSectionParseB(LkArena* arena, const char* file
       return false;
     sections[range_i].start = cp;
     sections[range_i].end = cp;
+    sections[range_i].cls = enum_default;
     for (int i_cls = 0; i_cls < enum_max; i_cls++)
     {
       if(strncmp(map_enum_str[i_cls], buf_cls, strnlen_s(map_enum_str[i_cls], S_MAX_LINE)) == 0)
+      {
+        sections[range_i].cls = i_cls;
+        break;
+      }
+    }
+    range_i++;
+  }
+  fclose(fp);
+  *o_section_count = section_count;
+  return sections;
+}
+
+static LkTwoStepSection* LkTwoStepSectionParseC(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, int *o_section_count)
+{
+  assert(o_section_count != NULL && *o_section_count == 0);
+  char buf[S_MAX_LINE];
+  char buf_tmp[S_MAX_LINE];
+  char buf_cls[S_MAX_LINE];
+  FILE* fp = NULL;
+  errno_t err = fopen_s(&fp, filepath, "r");
+  if (err)
+    return NULL;
+  int section_count = CountImportantLinesC(fp);
+  LkTwoStepSection* sections = APushArray(arena, LkTwoStepSection, section_count);
+  rewind(fp);
+  int range_i = 0;
+  while (fgets(buf, S_MAX_LINE, fp))
+  {
+    if (!IsHexChar(buf[0]) || strstr(buf, "InCB") == NULL)
+      continue;
+
+    u32 range_start = 0;
+    u32 range_end = 0;
+
+    int four_parse = sscanf_s(buf, "%x..%x ; %[^;] ; %s", &range_start, &range_end, buf_tmp, S_MAX_LINE, buf_cls, S_MAX_LINE);
+    if (four_parse < 4)
+    {
+      int three_parse = sscanf_s(buf, "%x ; %[^;] ; %s", &range_start, buf_tmp, S_MAX_LINE, &buf_cls, S_MAX_LINE);
+      if (three_parse < 3)
+        return false;
+      sections[range_i].start = range_start;
+      sections[range_i].end   = range_start;
+    }
+    else
+    {
+      sections[range_i].start = range_start;
+      sections[range_i].end   = range_end;
+    }
+    sections[range_i].cls = enum_default;
+    for (int i_cls = 0; i_cls < enum_max; i_cls++)
+    {
+      if (strncmp(map_enum_str[i_cls], buf_cls, strnlen_s(map_enum_str[i_cls], S_MAX_LINE)) == 0)
       {
         sections[range_i].cls = i_cls;
         break;
@@ -139,13 +205,19 @@ LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map
   {
     case UNIFMT_A:
     {
-      sections = LkTwoStepSectionParseA(arena->alt, filepath, map_enum_str, enum_max, &section_count);
+      sections = LkTwoStepSectionParseA(arena->alt, filepath, map_enum_str, enum_max, enum_default, &section_count);
       break;
     }
 
     case UNIFMT_B:
     {
-      sections = LkTwoStepSectionParseB(arena->alt, filepath, map_enum_str, enum_max, &section_count);
+      sections = LkTwoStepSectionParseB(arena->alt, filepath, map_enum_str, enum_max, enum_default, &section_count);
+      break;
+    }
+
+    case UNIFMT_C:
+    {
+      sections = LkTwoStepSectionParseC(arena->alt, filepath, map_enum_str, enum_max, enum_default, &section_count);
       break;
     }
 

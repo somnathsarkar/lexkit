@@ -257,6 +257,7 @@ bool lkTryLoadUnicodeDataFromSpecTwoStep(
   o_udts->ts_gb = LkTwoStepCreate(arena, str_path_gb, g_map_gbc_str, GBC_Count, GBC_XX, UNIFMT_A);
   o_udts->ts_gc = LkTwoStepCreate(arena, str_path_gc, g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
   o_udts->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count, EAW_Na, UNIFMT_A);
+  o_udts->ts_incb = LkTwoStepCreate(arena, str_path_incb, g_map_incb_str, INCB_Count, INCB_None, UNIFMT_C);
   o_udts->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count, BIDIC_L, UNIFMT_A);
   return true;
 }
@@ -768,15 +769,7 @@ Glyph glyph                 = {0};
   gbc = LkTwoStepLookup(udts->ts_gb, codepoint);
   gc = LkTwoStepLookup(udts->ts_gc, codepoint);
   eaw = LkTwoStepLookup(udts->ts_eaw, codepoint);
-
-  for (int i = 0; i < ud->incb_range_count; i++)
-  {
-    if (codepoint >= ud->incb_range_start[i] && codepoint <= ud->incb_range_end[i])
-    {
-      incb = ud->incb_range_cls[i];
-      break;
-    }
-  }
+  incb = LkTwoStepLookup(udts->ts_incb, codepoint);
 
   for (int i = 0; i < ud->ep_range_count; i++)
   {
