@@ -253,6 +253,10 @@ bool lkTryLoadUnicodeDataFromSpecTwoStep(
     return false;
   
   o_udts->ts_lb = LkTwoStepCreate(arena, str_path_lb, g_map_lbc_str, LBC_Count);
+  o_udts->ts_wb = LkTwoStepCreate(arena, str_path_wb, g_map_wbc_str, WBC_Count);
+  o_udts->ts_gb = LkTwoStepCreate(arena, str_path_gb, g_map_gbc_str, GBC_Count);
+  o_udts->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count);
+  o_udts->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count);
   return true;
 }
 
@@ -758,34 +762,10 @@ Glyph glyph                 = {0};
   INCB incb = INCB_None;
   bool extended_pictographic = false;
 
-  glyph.lbc = LkTwoStepLookup(udts->ts_lb, codepoint);
-
-  for (int i = 0; i < ud->wb_range_count; i++)
-  {
-    if (codepoint >= ud->wb_range_start[i] && codepoint <= ud->wb_range_end[i])
-    {
-      wbc = ud->wb_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->gb_range_count; i++)
-  {
-    if (codepoint >= ud->gb_range_start[i] && codepoint <= ud->gb_range_end[i])
-    {
-      gbc = ud->gb_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->eaw_range_count; i++)
-  {
-    if (codepoint >= ud->eaw_range_start[i] && codepoint <= ud->eaw_range_end[i])
-    {
-      eaw = ud->eaw_range_cls[i];
-      break;
-    }
-  }
+  lbc = LkTwoStepLookup(udts->ts_lb, codepoint);
+  wbc = LkTwoStepLookup(udts->ts_wb, codepoint);
+  gbc = LkTwoStepLookup(udts->ts_gb, codepoint);
+  eaw = LkTwoStepLookup(udts->ts_eaw, codepoint);
 
   for (int i = 0; i < ud->gc_count; i++)
   {

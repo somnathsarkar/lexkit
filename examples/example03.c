@@ -61,8 +61,8 @@ int main() {
   LkParagraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
-  lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
-  lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  lkSplitParagraphsTwoStep(arena, text.codepoints, text.codepoint_count, &ud, &udts, &para_count, &paragraphs);
+  lkSplitBidiRunsTwoStep(arena, text.codepoints, text.codepoint_count, &ud, &udts, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 #if MEASURE_PERF
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
@@ -174,7 +174,7 @@ int main() {
 #if MEASURE_PERF
       int64_t ts_split_lines = timestamp();
 #endif
-      lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
+      lkLayoutTextTwoStep(arena, &ud, &udts, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
 #if MEASURE_PERF
       int64_t ts_layout_text = timestamp();
 #endif

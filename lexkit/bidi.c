@@ -32,6 +32,26 @@ BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
   return ret;
 }
 
+BidiUnit BidiUnitCreateTwoStep(const u32 codepoint, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts)
+{
+  BidiUnit ret = {0};
+  ret.bidic = BIDIC_L;
+  ret.bidic = LkTwoStepLookup(udts->ts_bidi, codepoint);
+  for (i32 i = 0; i < ud->bidipb_count; i++)
+  {
+    if (codepoint == ud->bidipb_key[i])
+    {
+      ret.bidipb = ud->bidipb_value[i];
+      ret.bidipbt = ud->bidipbt[i];
+    }
+  }
+  if (ret.bidic == BIDIC_NSM)
+  {
+    ret.bidic_orig = ret.bidic;
+  }
+  return ret;
+}
+
 const i32 g_bidi_max_depth = 125; // Fixed by Unicode, guaranteed to never change
 static const i32 g_bracket_stack_size = 63; // Unicode constant
 
@@ -1231,6 +1251,98 @@ void lkSplitParagraphs(
   lkArenaRestore(scratch, scratch_pos);
 }
 
+void lkSplitParagraphsTwoStep(
+    LkArena* arena,
+    const u32* codepoints,
+    i32 len_codepoints,
+    LkUnicodeData* ud,
+    LkUnicodeDataTwoStep* udts,
+    i32* o_paragraph_count,
+    LkParagraph** o_paragraphs)
+{
+  assert(*o_paragraph_count == -1);
+  assert(*o_paragraphs == NULL);
+
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+
+  *o_paragraph_count = 0;
+  *o_paragraphs = NULL;
+  LkParagraph* para_focus = NULL;
+
+  i32 para_start_i = 0;
+  bool para_level_found = false;
+  i32 para_level = 0;
+  i32 isolate_count = 0;
+  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
+  for (i32 i = 0; i < len_codepoints; i++)
+    units[i] = BidiUnitCreateTwoStep(codepoints[i], ud, udts);
+  for (i32 i = 0; i < len_codepoints; i++)
+  {
+    const BidiUnit unit = units[i];
+    if (unit.bidic == BIDIC_LRI || unit.bidic == BIDIC_RLI || unit.bidic == BIDIC_FSI)
+    {
+      isolate_count++;
+    }
+    else if (unit.bidic == BIDIC_PDI)
+    {
+      isolate_count = (isolate_count > 0) ? (isolate_count - 1) : isolate_count;
+    }
+    else if (unit.bidic == BIDIC_AL || unit.bidic == BIDIC_R)
+    {
+      if (isolate_count == 0 && !para_level_found)
+      {
+        para_level_found = true;
+        para_level = 1;
+      }
+    }
+    else if (unit.bidic == BIDIC_L)
+    {
+      if (isolate_count == 0 && !para_level_found)
+      {
+        para_level_found = true;
+        para_level = 0;
+      }
+    }
+    else if (unit.bidic == BIDIC_B)
+    {
+      if (*o_paragraphs == NULL)
+      {
+        *o_paragraphs = APush(arena, LkParagraph);
+        para_focus = *o_paragraphs;
+      }
+      else
+      {
+        para_focus->next = APush(arena, LkParagraph);
+        para_focus = para_focus->next;
+      }
+      *para_focus = (LkParagraph) { para_start_i, i, para_level, NULL };
+      (*o_paragraph_count)++;
+      para_start_i = i + 1;
+      para_level_found = false;
+      para_level = 0;
+      isolate_count = 0;
+    }
+  }
+  if (len_codepoints > 0 && para_start_i < len_codepoints)
+  {
+    if (*o_paragraphs == NULL)
+    {
+      *o_paragraphs = APush(arena, LkParagraph);
+      para_focus = *o_paragraphs;
+    }
+    else
+    {
+      para_focus->next = APush(arena, LkParagraph);
+      para_focus = para_focus->next;
+    }
+    *para_focus = (LkParagraph) { para_start_i, len_codepoints - 1, para_level, NULL };
+    (*o_paragraph_count)++;
+  }
+
+  lkArenaRestore(scratch, scratch_pos);
+}
+
 struct LkLevelRunNode
 {
   i32 lrun_count;
@@ -1263,6 +1375,99 @@ void lkSplitBidiRuns(
   BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
   for (i32 i = 0; i < len_codepoints; i++)
     units[i] = BidiUnitCreate(codepoints[i], ud);
+  *o_levels = APushArray(arena, i32, len_codepoints);
+  i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
+  LkLevelRunNode* lrun_list_tail = NULL;
+  LkLevelRunNode* lrun_list_head = NULL;
+  LkParagraph* para_focus = paragraphs;
+  for (i32 para_i = 0; para_i < paragraph_count; para_i++)
+  {
+      lkSplitBidiRunsParagraph(
+          scratch,
+          units,
+          len_codepoints,
+          ud,
+          para_focus->para_start_i,
+          para_focus->para_end_i,
+          para_focus->para_level,
+          *o_levels,
+          matching_isolate);
+
+      i32 para_level_run_count = -1;
+      LkLevelRun* para_level_runs = NULL;
+
+      LevelRunSplit(
+          scratch,
+          *o_levels,
+          para_focus->para_start_i,
+          para_focus->para_end_i,
+          para_focus->para_level,
+          &para_level_run_count,
+          &para_level_runs);
+
+      LkLevelRunNode* lrun_focus = NULL;
+      if (lrun_list_tail == NULL)
+      {
+        lrun_list_tail = APush(scratch, LkLevelRunNode);
+        lrun_list_head = lrun_list_tail;
+        lrun_focus = lrun_list_tail;
+      }
+      else
+      {
+        lrun_list_tail->next = APush(scratch, LkLevelRunNode);
+        lrun_focus = lrun_list_tail->next;
+        lrun_list_tail = lrun_list_tail->next;
+      }
+      lrun_focus->lrun = para_level_runs;
+      lrun_focus->lrun_count = para_level_run_count;
+      lrun_focus->next = NULL;
+
+      *o_level_run_count += para_level_run_count; 
+
+      para_focus = para_focus->next;
+  }
+
+  *o_level_runs = APushArray(arena, LkLevelRun, *o_level_run_count);
+
+  LkLevelRunNode* lrun_focus = lrun_list_head;
+  i32 lrun_total = 0;
+  while (lrun_focus != NULL)
+  {
+    for (i32 lrun_i = 0; lrun_i < lrun_focus->lrun_count; lrun_i++)
+    {
+      (*o_level_runs)[lrun_total + lrun_i] = lrun_focus->lrun[lrun_i];
+    }
+    lrun_total += lrun_focus->lrun_count;
+    lrun_focus = lrun_focus->next;
+  }
+
+  lkArenaRestore(scratch, scratch_pos);
+}
+
+void lkSplitBidiRunsTwoStep(
+    LkArena* arena,
+    const u32* codepoints,
+    i32 len_codepoints,
+    LkUnicodeData* ud,
+    LkUnicodeDataTwoStep* udts,
+    i32 paragraph_count,
+    LkParagraph* paragraphs,
+    i32** o_levels,
+    i32* o_level_run_count,
+    LkLevelRun** o_level_runs)
+{
+  assert(*o_level_run_count == -1);
+  assert(*o_level_runs == NULL);
+  assert(o_levels != NULL && *o_levels == NULL);
+
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+
+  *o_level_run_count = 0;
+
+  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
+  for (i32 i = 0; i < len_codepoints; i++)
+    units[i] = BidiUnitCreateTwoStep(codepoints[i], ud, udts);
   *o_levels = APushArray(arena, i32, len_codepoints);
   i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
   LkLevelRunNode* lrun_list_tail = NULL;
