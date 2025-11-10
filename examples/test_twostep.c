@@ -21,7 +21,7 @@ int main() {
       "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
       "C:/Code/lexkit/lexkit/BidiBrackets.txt",
       &ud);
-  LkTwoStep* ts = LkTwoStepCreate(arena, "C:/Code/lexkit/lexkit/LineBreakProperty.txt", g_map_lbc_str, LBC_Count);
+  LkTwoStep* ts = LkTwoStepCreate(arena, "C:/Code/lexkit/lexkit/LineBreakProperty.txt", g_map_lbc_str, LBC_Count, LBC_XX, UNIFMT_A);
   for (i32 i = 0; i < ud.lb_range_count; i++)
   {
     for (i32 j = ud.lb_range_start[i]; j <= ud.lb_range_end[i]; j++)
@@ -30,6 +30,13 @@ int main() {
       i32 udl = ud.lb_range_cls[i];
       assert(tsl == udl);
     }
+  }
+  LkTwoStep* ts_gc = LkTwoStepCreate(arena, "C:/Code/lexkit/lexkit/UnicodeData.txt", g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
+  for (i32 i = 0; i < ud.gc_count; i++)
+  {
+    i32 tsl = LkTwoStepLookup(ts_gc, ud.gc_codepoint[i]);
+    i32 udl = ud.gc_cls[i];
+    assert(tsl == udl);
   }
   return 0;
 }

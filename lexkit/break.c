@@ -252,11 +252,12 @@ bool lkTryLoadUnicodeDataFromSpecTwoStep(
   if (!fSuccess)
     return false;
   
-  o_udts->ts_lb = LkTwoStepCreate(arena, str_path_lb, g_map_lbc_str, LBC_Count);
-  o_udts->ts_wb = LkTwoStepCreate(arena, str_path_wb, g_map_wbc_str, WBC_Count);
-  o_udts->ts_gb = LkTwoStepCreate(arena, str_path_gb, g_map_gbc_str, GBC_Count);
-  o_udts->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count);
-  o_udts->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count);
+  o_udts->ts_lb = LkTwoStepCreate(arena, str_path_lb, g_map_lbc_str, LBC_Count, LBC_XX, UNIFMT_A);
+  o_udts->ts_wb = LkTwoStepCreate(arena, str_path_wb, g_map_wbc_str, WBC_Count, WBC_XX, UNIFMT_A);
+  o_udts->ts_gb = LkTwoStepCreate(arena, str_path_gb, g_map_gbc_str, GBC_Count, GBC_XX, UNIFMT_A);
+  o_udts->ts_gc = LkTwoStepCreate(arena, str_path_gc, g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
+  o_udts->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count, EAW_Na, UNIFMT_A);
+  o_udts->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count, BIDIC_L, UNIFMT_A);
   return true;
 }
 
@@ -765,16 +766,8 @@ Glyph glyph                 = {0};
   lbc = LkTwoStepLookup(udts->ts_lb, codepoint);
   wbc = LkTwoStepLookup(udts->ts_wb, codepoint);
   gbc = LkTwoStepLookup(udts->ts_gb, codepoint);
+  gc = LkTwoStepLookup(udts->ts_gc, codepoint);
   eaw = LkTwoStepLookup(udts->ts_eaw, codepoint);
-
-  for (int i = 0; i < ud->gc_count; i++)
-  {
-    if (codepoint == ud->gc_codepoint[i])
-    {
-      gc = ud->gc_cls[i];
-      break;
-    }
-  }
 
   for (int i = 0; i < ud->incb_range_count; i++)
   {

@@ -409,6 +409,7 @@ typedef struct
   LkTwoStep* ts_lb;
   LkTwoStep* ts_wb;
   LkTwoStep* ts_gb;
+  LkTwoStep* ts_gc;
   LkTwoStep* ts_eaw;
   LkTwoStep* ts_bidi;
 } LkUnicodeDataTwoStep;
@@ -492,6 +493,7 @@ typedef struct
 extern const char* g_map_lbc_str[];
 extern const char* g_map_wbc_str[];
 extern const char* g_map_gbc_str[];
+extern const char* g_map_gc_str[];
 extern const char* g_map_eaw_str[];
 extern const char* g_map_bidic_str[];
 

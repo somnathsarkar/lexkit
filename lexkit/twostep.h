@@ -12,7 +12,18 @@ typedef struct
   u64 block1_len;
 } LkTwoStep;
 
-LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max);
+typedef enum
+{
+  UNIFMT_A,
+  UNIFMT_B,
+  UNIFMT_C,
+  UNIFMT_D,
+  UNIFMT_E,
+
+  UNIFMT_Count
+} UNIFMT;
+
+LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, UNIFMT unifmt);
 i32 LkTwoStepLookup(LkTwoStep* ts, u32 ch);
 
 #endif // __LEXKIT_TWOSTEP__

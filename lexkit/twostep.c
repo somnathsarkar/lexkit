@@ -41,17 +41,17 @@ int CompareTwoStepSection(void* ctx, const void* a, const void* b)
   return ta->end - tb->end;
 }
 
-LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max)
+static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, int* o_section_count)
 {
+  assert(o_section_count != NULL && *o_section_count == 0);
   char buf[S_MAX_LINE];
   char buf_cls[S_MAX_LINE];
   FILE* fp = NULL;
   errno_t err = fopen_s(&fp, filepath, "r");
   if (err)
     return NULL;
-  u64 scratch_pos = lkArenaGetPos(arena->alt);
   int section_count = CountImportantLines(fp);
-  LkTwoStepSection* sections = APushArray(arena->alt, LkTwoStepSection, section_count);
+  LkTwoStepSection* sections = APushArray(arena, LkTwoStepSection, section_count);
   rewind(fp);
   i32 range_i = 0;
   while (fgets(buf, S_MAX_LINE, fp))
@@ -88,12 +88,80 @@ LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map
     }
     range_i++;
   }
+  fclose(fp);
+  *o_section_count = section_count;
+  return sections;
+}
+
+static LkTwoStepSection* LkTwoStepSectionParseB(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, int *o_section_count)
+{
+  assert(o_section_count != NULL && *o_section_count == 0);
+  char buf[S_MAX_LINE];
+  char buf_tmp[S_MAX_LINE];
+  char buf_cls[S_MAX_LINE];
+  FILE* fp = NULL;
+  errno_t err = fopen_s(&fp, filepath, "r");
+  if (err)
+    return NULL;
+  int section_count = CountImportantLines(fp);
+  LkTwoStepSection* sections = APushArray(arena, LkTwoStepSection, section_count);
+  rewind(fp);
+  i32 range_i = 0;
+  while (fgets(buf, S_MAX_LINE, fp))
+  {
+    u32 cp = 0;
+    i32 three_parse = sscanf_s(buf, "%x;%[^;];%[^;]", &cp, buf_tmp, S_MAX_LINE, buf_cls, S_MAX_LINE);
+    if (three_parse < 3)
+      return false;
+    sections[range_i].start = cp;
+    sections[range_i].end = cp;
+    for (int i_cls = 0; i_cls < enum_max; i_cls++)
+    {
+      if(strncmp(map_enum_str[i_cls], buf_cls, strnlen_s(map_enum_str[i_cls], S_MAX_LINE)) == 0)
+      {
+        sections[range_i].cls = i_cls;
+        break;
+      }
+    }
+    range_i++;
+  }
+  fclose(fp);
+  *o_section_count = section_count;
+  return sections;
+}
+
+LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, UNIFMT unifmt)
+{
+  u64 scratch_pos = lkArenaGetPos(arena->alt);
+  LkTwoStepSection* sections = NULL;
+  int section_count = 0;
+  switch (unifmt)
+  {
+    case UNIFMT_A:
+    {
+      sections = LkTwoStepSectionParseA(arena->alt, filepath, map_enum_str, enum_max, &section_count);
+      break;
+    }
+
+    case UNIFMT_B:
+    {
+      sections = LkTwoStepSectionParseB(arena->alt, filepath, map_enum_str, enum_max, &section_count);
+      break;
+    }
+
+    default:
+      assert(false);
+  }
   qsort_s(sections, section_count, sizeof(LkTwoStepSection), CompareTwoStepSection, NULL);
   u32 max_codepoint = sections[section_count - 1].end + 1;
   u32 block_count = (max_codepoint + BLOCK_SIZE - 1) / BLOCK_SIZE;
   i32* block_list = APushArray(arena->alt, i32, block_count * BLOCK_SIZE);
   i32* reduced_block_list = APushArray(arena->alt, i32, block_count * BLOCK_SIZE);
   i32 reduced_block_count = 0;
+  for (int i = 0; i < block_count * BLOCK_SIZE; i++)
+  {
+    block_list[i] = enum_default;
+  }
   for (int i = 0; i < section_count; i++)
   {
     for(int j = sections[i].start; j <= sections[i].end; j++)
