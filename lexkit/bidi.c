@@ -1160,6 +1160,21 @@ static void lkSplitBidiRunsParagraph(
   lkArenaRestore(scratch, scratch_pos);
 }
 
+void lkComputeBidiUnitsTwoStep(
+    LkArena* arena,
+    const u32* codepoints,
+    i32 len_codepoints,
+    LkUnicodeData* ud,
+    LkUnicodeDataTwoStep* udts,
+    BidiUnit** o_units)
+{
+  assert(o_units != NULL && *o_units == NULL);
+
+  *o_units = APushArray(arena, BidiUnit, len_codepoints);
+  for (i32 i = 0; i < len_codepoints; i++)
+    (*o_units)[i] = BidiUnitCreateTwoStep(codepoints[i], ud, udts);
+}
+
 void lkSplitParagraphs(
     LkArena* arena,
     const u32* codepoints,
@@ -1255,6 +1270,7 @@ void lkSplitParagraphsTwoStep(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
+    const BidiUnit* units,
     LkUnicodeData* ud,
     LkUnicodeDataTwoStep* udts,
     i32* o_paragraph_count,
@@ -1274,9 +1290,6 @@ void lkSplitParagraphsTwoStep(
   bool para_level_found = false;
   i32 para_level = 0;
   i32 isolate_count = 0;
-  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
-  for (i32 i = 0; i < len_codepoints; i++)
-    units[i] = BidiUnitCreateTwoStep(codepoints[i], ud, udts);
   for (i32 i = 0; i < len_codepoints; i++)
   {
     const BidiUnit unit = units[i];
@@ -1448,6 +1461,7 @@ void lkSplitBidiRunsTwoStep(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
+    BidiUnit* units,
     LkUnicodeData* ud,
     LkUnicodeDataTwoStep* udts,
     i32 paragraph_count,
@@ -1465,9 +1479,6 @@ void lkSplitBidiRunsTwoStep(
 
   *o_level_run_count = 0;
 
-  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
-  for (i32 i = 0; i < len_codepoints; i++)
-    units[i] = BidiUnitCreateTwoStep(codepoints[i], ud, udts);
   *o_levels = APushArray(arena, i32, len_codepoints);
   i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
   LkLevelRunNode* lrun_list_tail = NULL;

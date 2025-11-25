@@ -126,6 +126,7 @@ void lkLayoutTextTwoStep(
       LkGlyph** glyphs,
       i32 line_count,
       LkLine* lines,
+      const BidiUnit* units,
       i32 w,
       i32 h,
       u64 max_vd,

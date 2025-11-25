@@ -39,6 +39,14 @@ BidiUnit BidiUnitCreateTwoStep(const u32 codepoint, LkUnicodeData* ud, LkUnicode
 
 extern const i32 g_bidi_max_depth; // Fixed by Unicode, guaranteed to never change
 
+void lkComputeBidiUnitsTwoStep(
+    LkArena* arena,
+    const u32* codepoints,
+    i32 len_codepoints,
+    LkUnicodeData* ud,
+    LkUnicodeDataTwoStep* udts,
+    BidiUnit** o_units);
+
 void lkSplitParagraphs(
     LkArena* arena,
     const u32* codepoints,
@@ -51,6 +59,7 @@ void lkSplitParagraphsTwoStep(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
+    const BidiUnit* units,
     LkUnicodeData* ud,
     LkUnicodeDataTwoStep* udts,
     i32* o_paragraph_count,
@@ -71,6 +80,7 @@ void lkSplitBidiRunsTwoStep(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
+    BidiUnit* units,
     LkUnicodeData* ud,
     LkUnicodeDataTwoStep* udts,
     i32 paragraph_count,

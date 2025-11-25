@@ -639,6 +639,7 @@ void lkLayoutTextTwoStep(
       LkGlyph** glyphs,
       i32 line_count,
       LkLine* lines,
+      const BidiUnit* units,
       i32 w,
       i32 h,
       u64 max_vd,
@@ -658,21 +659,19 @@ void lkLayoutTextTwoStep(
     // L1
 
     i32* level_line = APushArray(scratch, i32, line_codepoint_count);
-    BidiUnit* units = APushArray(scratch, BidiUnit, line_codepoint_count);
     for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
     {
       level_line[codepoint_i - lines[line_i].start_i] = levels[codepoint_i];
-      units[codepoint_i - lines[line_i].start_i] = BidiUnitCreateTwoStep(text->codepoints[codepoint_i], ud, udts);
     }
     bool reset_fsi_lri_rli_pdi = true;
     for (i32 line_codepoint_i = line_codepoint_count - 1; line_codepoint_i >= 0; line_codepoint_i--)
     {
-      if (IsL1Class(units[line_codepoint_i].bidic) && reset_fsi_lri_rli_pdi)
+      if (IsL1Class(units[lines[line_i].start_i + line_codepoint_i].bidic) && reset_fsi_lri_rli_pdi)
       {
         level_line[line_codepoint_i] = lines[line_i].para_level;
       }
-      else if (units[line_codepoint_i].bidic == BIDIC_B &&
-                units[line_codepoint_i].bidic == BIDIC_S)
+      else if (units[lines[line_i].start_i + line_codepoint_i].bidic == BIDIC_B &&
+                units[lines[line_i].start_i + line_codepoint_i].bidic == BIDIC_S)
       {
         level_line[line_codepoint_i] = lines[line_i].para_level;
         reset_fsi_lri_rli_pdi = true;
