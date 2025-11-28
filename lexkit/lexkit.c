@@ -228,7 +228,7 @@ LkLine* lkSplitLines(
 
         i32 glyphs_per_codepoint = 0;
         LkGlyph* codepoint_glyph_p = glyphs[codepoint_i];
-        while (codepoint_glyph_p != NULL)
+        while (codepoint_glyph_p != NULL && !codepoint_glyph_p->ignore)
         {
           float bitmap_left = font->glyphs[codepoint_glyph_p->glyph_index].bitmap_left;
           float bitmap_width = font->glyphs[codepoint_glyph_p->glyph_index].bitmap_width;
@@ -327,7 +327,7 @@ LkLine* lkSplitLines(
       for (i32 codepoint_j = word_start_i; codepoint_j < word_end_i; codepoint_j++)
       {
         LkGlyph* focus_glyph = glyphs[codepoint_j];
-        while (focus_glyph != NULL && focus_glyph->next != NULL)
+        while (focus_glyph != NULL && focus_glyph->next != NULL && !focus_glyph->ignore)
         {
           cursor_x += focus_glyph->x_advance;
           if (codepoint_j < last_line_break_i)
@@ -335,6 +335,7 @@ LkLine* lkSplitLines(
           focus_glyph = focus_glyph->next;
         }
         if (focus_glyph == NULL) continue;
+        if (focus_glyph->ignore) continue;
         LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
         float cursor_x_advance = (found_grapheme_break &&
                                   grapheme_i == codepoint_j) ?
@@ -378,6 +379,11 @@ LkLine* lkSplitLines(
   }
   lkArenaRestore(scratch, scratch_pos);
   return o_lines;
+}
+
+bool IgnoreCodepointDuringShaping(u32 codepoint)
+{
+  return codepoint == 10; // LF
 }
 
 void lkShapeText(
@@ -427,6 +433,11 @@ void lkShapeText(
           LkGlyph* new_glyph = APush(arena, LkGlyph);
           new_glyph->glyph_index = glyph_info[gi].codepoint;
           new_glyph->x_advance = glyph_pos[gi].x_advance;
+          new_glyph->ignore = false;
+          if (IgnoreCodepointDuringShaping(text->codepoints[glyph_info[gi].cluster]))
+          {
+            new_glyph->ignore = true;
+          }
           new_glyph->y_advance = glyph_pos[gi].y_advance;
           new_glyph->x_offset = glyph_pos[gi].x_offset;
           new_glyph->y_offset = glyph_pos[gi].y_offset;
@@ -448,6 +459,11 @@ void lkShapeText(
           LkGlyph* new_glyph = APush(arena, LkGlyph);
           new_glyph->glyph_index = glyph_info[gi].codepoint;
           new_glyph->x_advance = glyph_pos[gi].x_advance;
+          new_glyph->ignore = false;
+          if (IgnoreCodepointDuringShaping(text->codepoints[glyph_info[gi].cluster]))
+          {
+            new_glyph->ignore = true;
+          }
           new_glyph->y_advance = glyph_pos[gi].y_advance;
           new_glyph->x_offset = glyph_pos[gi].x_offset;
           new_glyph->y_offset = glyph_pos[gi].y_offset;
@@ -479,6 +495,7 @@ void lkLayoutText(
       LkGlyph** glyphs,
       i32 line_count,
       LkLine* lines,
+      const BidiUnit* units,
       i32 w,
       i32 h,
       u64 max_vd,
@@ -498,21 +515,19 @@ void lkLayoutText(
     // L1
 
     i32* level_line = APushArray(scratch, i32, line_codepoint_count);
-    BidiUnit* units = APushArray(scratch, BidiUnit, line_codepoint_count);
     for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
     {
       level_line[codepoint_i - lines[line_i].start_i] = levels[codepoint_i];
-      units[codepoint_i - lines[line_i].start_i] = BidiUnitCreate(text->codepoints[codepoint_i], ud);
     }
     bool reset_fsi_lri_rli_pdi = true;
     for (i32 line_codepoint_i = line_codepoint_count - 1; line_codepoint_i >= 0; line_codepoint_i--)
     {
-      if (IsL1Class(units[line_codepoint_i].bidic) && reset_fsi_lri_rli_pdi)
+      if (IsL1Class(units[lines[line_i].start_i + line_codepoint_i].bidic) && reset_fsi_lri_rli_pdi)
       {
         level_line[line_codepoint_i] = lines[line_i].para_level;
       }
-      else if (units[line_codepoint_i].bidic == BIDIC_B &&
-                units[line_codepoint_i].bidic == BIDIC_S)
+      else if (units[lines[line_i].start_i + line_codepoint_i].bidic == BIDIC_B &&
+                units[lines[line_i].start_i + line_codepoint_i].bidic == BIDIC_S)
       {
         level_line[line_codepoint_i] = lines[line_i].para_level;
         reset_fsi_lri_rli_pdi = true;
@@ -575,7 +590,7 @@ void lkLayoutText(
     {
       i32 codepoint_i = codepoint_orders[codepoint_order_i];
       LkGlyph* focus_glyph = glyphs[codepoint_i];
-      while (focus_glyph != NULL)
+      while (focus_glyph != NULL && !focus_glyph->ignore)
       {
         aglyph = font->glyphs[focus_glyph->glyph_index];
         LkVertexDescriptor_Text v = {

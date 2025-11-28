@@ -236,333 +236,22 @@ bool lkTryLoadUnicodeDataFromSpec(
     LkUnicodeData* o_ud)
 {
   assert(o_ud != NULL);
+  
+  o_ud->ts_lb = LkTwoStepCreate(arena, str_path_lb, g_map_lbc_str, LBC_Count, LBC_XX, UNIFMT_A);
+  o_ud->ts_wb = LkTwoStepCreate(arena, str_path_wb, g_map_wbc_str, WBC_Count, WBC_XX, UNIFMT_A);
+  o_ud->ts_gb = LkTwoStepCreate(arena, str_path_gb, g_map_gbc_str, GBC_Count, GBC_XX, UNIFMT_A);
+  o_ud->ts_gc = LkTwoStepCreate(arena, str_path_gc, g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
+  o_ud->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count, EAW_Na, UNIFMT_A);
+  o_ud->ts_incb = LkTwoStepCreate(arena, str_path_incb, g_map_incb_str, INCB_Count, INCB_None, UNIFMT_C);
+  o_ud->ts_ep = LkTwoStepCreate(arena, str_path_ep, NULL, 2, 0 /* Extended_Pictographic */, UNIFMT_D);
+  o_ud->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count, BIDIC_L, UNIFMT_A);
+
+  // TODO: Clean this up, not suitable for TwoStep table, but could be something else (hashmap?)
+  
+  FILE* fp = NULL;
+  errno_t err = fopen_s(&fp, str_path_bidipb, "r");
   char buf[S_MAX_LINE];
   char buf_cls[S_MAX_LINE];
-  char buf_tmp[S_MAX_LINE];
-
-  FILE* fp = NULL;
-  errno_t err = fopen_s(&fp, str_path_lb, "r");
-  if (err)
-    return false;
-  o_ud->lb_range_count = CountImportantLines(fp);
-  rewind(fp);
-  o_ud->lb_range_start = APushArray(arena, u32, o_ud->lb_range_count);
-  o_ud->lb_range_end = APushArray(arena, u32, o_ud->lb_range_count);
-  o_ud->lb_range_cls = APushArray(arena, LBC, o_ud->lb_range_count);
-  i32 i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]))
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int three_parse = sscanf_s(buf, "%x..%x ; %s", &range_start, &range_end, buf_cls, S_MAX_LINE);
-    if (three_parse < 3)
-    {
-      int two_parse = sscanf_s(buf, "%x ; %s", &range_start, &buf_cls, S_MAX_LINE);
-      if (two_parse < 2)
-        return false;
-      o_ud->lb_range_start[i_range] = range_start;
-      o_ud->lb_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->lb_range_start[i_range] = range_start;
-      o_ud->lb_range_end[i_range]   = range_end;
-    }
-    o_ud->lb_range_cls[i_range] = LBC_XX;
-    for (int i_cls = 0; i_cls < LBC_Count; i_cls++)
-    {
-      if (strncmp(g_map_lbc_str[i_cls], buf_cls, strnlen_s(g_map_lbc_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->lb_range_cls[i_range] = (LBC) i_cls;
-        break;
-      }
-    }
-    i_range++;
-  }
-  fclose(fp);
-
-  err = fopen_s(&fp, str_path_wb, "r");
-  if (err)
-    return false;
-  o_ud->wb_range_count = CountImportantLines(fp);
-  rewind(fp);
-  o_ud->wb_range_start = APushArray(arena, u32, o_ud->wb_range_count);
-  o_ud->wb_range_end = APushArray(arena, u32, o_ud->wb_range_count);
-  o_ud->wb_range_cls = APushArray(arena, WBC, o_ud->wb_range_count);
-  i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]))
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int three_parse = sscanf_s(buf, "%x..%x ; %s", &range_start, &range_end, buf_cls, S_MAX_LINE);
-    if (three_parse < 3)
-    {
-      int two_parse = sscanf_s(buf, "%x ; %s", &range_start, &buf_cls, S_MAX_LINE);
-      if (two_parse < 2)
-        return false;
-      o_ud->wb_range_start[i_range] = range_start;
-      o_ud->wb_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->wb_range_start[i_range] = range_start;
-      o_ud->wb_range_end[i_range]   = range_end;
-    }
-    o_ud->wb_range_cls[i_range] = WBC_XX;
-    for (int i_cls = 0; i_cls < WBC_Count; i_cls++)
-    {
-      if (strncmp(g_map_wbc_str[i_cls], buf_cls, strnlen_s(g_map_wbc_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->wb_range_cls[i_range] = (WBC) i_cls;
-        break;
-      }
-    }
-    i_range++;
-  }
-
-  err = fopen_s(&fp, str_path_gb, "r");
-  if (err)
-    return false;
-  o_ud->gb_range_count = CountImportantLines(fp);
-  rewind(fp);
-  o_ud->gb_range_start = APushArray(arena, u32, o_ud->gb_range_count);
-  o_ud->gb_range_end = APushArray(arena, u32, o_ud->gb_range_count);
-  o_ud->gb_range_cls = APushArray(arena, GBC, o_ud->gb_range_count);
-  i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]))
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int three_parse = sscanf_s(buf, "%x..%x ; %s", &range_start, &range_end, buf_cls, S_MAX_LINE);
-    if (three_parse < 3)
-    {
-      int two_parse = sscanf_s(buf, "%x ; %s", &range_start, &buf_cls, S_MAX_LINE);
-      if (two_parse < 2)
-        return false;
-      o_ud->gb_range_start[i_range] = range_start;
-      o_ud->gb_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->gb_range_start[i_range] = range_start;
-      o_ud->gb_range_end[i_range]   = range_end;
-    }
-    o_ud->gb_range_cls[i_range] = GBC_XX;
-    for (int i_cls = 0; i_cls < GBC_Count; i_cls++)
-    {
-      if (strncmp(g_map_gbc_str[i_cls], buf_cls, strnlen_s(g_map_gbc_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->gb_range_cls[i_range] = (GBC) i_cls;
-        break;
-      }
-    }
-    i_range++;
-  }
-
-  err = fopen_s(&fp, str_path_gc, "r");
-  if (err)
-    return false;
-  o_ud->gc_count = CountImportantLines(fp);
-  rewind(fp);
-  o_ud->gc_codepoint = APushArray(arena, u32, o_ud->gc_count);
-  o_ud->gc_cls = APushArray(arena, GC, o_ud->gc_count);
-  for (int i = 0; i < o_ud->gc_count; i++)
-    o_ud->gc_cls[i] = GC_Cn;
-  i32 i_codepoint = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    u32 cp = 0;
-    i32 three_parse = sscanf_s(buf, "%x;%[^;];%[^;]", &cp, buf_tmp, S_MAX_LINE, buf_cls, S_MAX_LINE);
-    if (three_parse < 3)
-      return false;
-    o_ud->gc_codepoint[i_codepoint] = cp;
-    o_ud->gc_cls[i_codepoint] = GC_Cn;
-    for (int i_cls = 0; i_cls < GC_Count; i_cls++)
-    {
-      if(strncmp(g_map_gc_str[i_cls], buf_cls, strnlen_s(g_map_gc_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->gc_cls[i_codepoint] = (GC) i_cls;
-        break;
-      }
-    }
-    i_codepoint++;
-  }
-
-  err = fopen_s(&fp, str_path_eaw, "r");
-  if (err)
-    return false;
-  o_ud->eaw_range_count = CountImportantLines(fp);
-  rewind(fp);
-  o_ud->eaw_range_start = APushArray(arena, u32, o_ud->eaw_range_count);
-  o_ud->eaw_range_end = APushArray(arena, u32, o_ud->eaw_range_count);
-  o_ud->eaw_range_cls = APushArray(arena, EAW, o_ud->eaw_range_count);
-  i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]))
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int three_parse = sscanf_s(buf, "%x..%x ; %s", &range_start, &range_end, buf_cls, S_MAX_LINE);
-    if (three_parse < 3)
-    {
-      int two_parse = sscanf_s(buf, "%x ; %s", &range_start, &buf_cls, S_MAX_LINE);
-      if (two_parse < 2)
-        return false;
-      o_ud->eaw_range_start[i_range] = range_start;
-      o_ud->eaw_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->eaw_range_start[i_range] = range_start;
-      o_ud->eaw_range_end[i_range]   = range_end;
-    }
-    o_ud->eaw_range_cls[i_range] = EAW_Na;
-    for (int i_cls = 0; i_cls < EAW_Count; i_cls++)
-    {
-      if (strncmp(g_map_eaw_str[i_cls], buf_cls, strnlen_s(g_map_eaw_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->eaw_range_cls[i_range] = (EAW) i_cls;
-        break;
-      }
-    }
-    i_range++;
-  }
-
-  err = fopen_s(&fp, str_path_incb, "r");
-  if (err)
-    return false;
-  o_ud->incb_range_count = CountImportantLinesInCB(fp);
-  rewind(fp);
-  o_ud->incb_range_start = APushArray(arena, u32, o_ud->incb_range_count);
-  o_ud->incb_range_end = APushArray(arena, u32, o_ud->incb_range_count);
-  o_ud->incb_range_cls = APushArray(arena, INCB, o_ud->incb_range_count);
-  i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]) || strstr(buf, "InCB") == NULL)
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int four_parse = sscanf_s(buf, "%x..%x ; %[^;] ; %s", &range_start, &range_end, buf_tmp, S_MAX_LINE, buf_cls, S_MAX_LINE);
-    if (four_parse < 4)
-    {
-      int three_parse = sscanf_s(buf, "%x ; %[^;] ; %s", &range_start, buf_tmp, S_MAX_LINE, &buf_cls, S_MAX_LINE);
-      if (three_parse < 3)
-        return false;
-      o_ud->incb_range_start[i_range] = range_start;
-      o_ud->incb_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->incb_range_start[i_range] = range_start;
-      o_ud->incb_range_end[i_range]   = range_end;
-    }
-    o_ud->incb_range_cls[i_range] = INCB_None;
-    for (int i_cls = 0; i_cls < INCB_Count; i_cls++)
-    {
-      if (strncmp(g_map_incb_str[i_cls], buf_cls, strnlen_s(g_map_incb_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->incb_range_cls[i_range] = (INCB) i_cls;
-        break;
-      }
-    }
-    i_range++;
-  }
-
-  err = fopen_s(&fp, str_path_ep, "r");
-  if (err)
-    return false;
-  o_ud->ep_range_count = CountImportantLinesEmoji(fp);
-  rewind(fp);
-  o_ud->ep_range_start = APushArray(arena, u32, o_ud->ep_range_count);
-  o_ud->ep_range_end = APushArray(arena, u32, o_ud->ep_range_count);
-  i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]) || strstr(buf, "Extended_Pictographic") == NULL)
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int two_parse = sscanf_s(buf, "%x..%x", &range_start, &range_end, buf_cls, S_MAX_LINE);
-    if (two_parse < 2)
-    {
-      int one_parse = sscanf_s(buf, "%x", &range_start, &buf_cls, S_MAX_LINE);
-      if (one_parse < 1)
-        return false;
-      o_ud->ep_range_start[i_range] = range_start;
-      o_ud->ep_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->ep_range_start[i_range] = range_start;
-      o_ud->ep_range_end[i_range]   = range_end;
-    }
-    i_range++;
-  }
-
-  err = fopen_s(&fp, str_path_bidi, "r");
-  if (err)
-    return false;
-  o_ud->bidi_range_count = CountImportantLines(fp);
-  rewind(fp);
-  o_ud->bidi_range_start = APushArray(arena, u32, o_ud->bidi_range_count);
-  o_ud->bidi_range_end = APushArray(arena, u32, o_ud->bidi_range_count);
-  o_ud->bidi_range_cls = APushArray(arena, BIDIC, o_ud->bidi_range_count);
-  i_range = 0;
-  while (fgets(buf, S_MAX_LINE, fp))
-  {
-    if (!IsHexChar(buf[0]))
-      continue;
-
-    u32 range_start = 0;
-    u32 range_end = 0;
-
-    int three_parse = sscanf_s(buf, "%x..%x ; %s", &range_start, &range_end, buf_cls, S_MAX_LINE);
-    if (three_parse < 3)
-    {
-      int two_parse = sscanf_s(buf, "%x ; %s", &range_start, &buf_cls, S_MAX_LINE);
-      if (two_parse < 2)
-        return false;
-      o_ud->bidi_range_start[i_range] = range_start;
-      o_ud->bidi_range_end[i_range]   = range_start;
-    }
-    else
-    {
-      o_ud->bidi_range_start[i_range] = range_start;
-      o_ud->bidi_range_end[i_range]   = range_end;
-    }
-    o_ud->bidi_range_cls[i_range] = BIDIC_L;
-    for (int i_cls = 0; i_cls < BIDIC_Count; i_cls++)
-    {
-      if (strncmp(g_map_bidic_str[i_cls], buf_cls, strnlen_s(g_map_bidic_str[i_cls], S_MAX_LINE)) == 0)
-      {
-        o_ud->bidi_range_cls[i_range] = (BIDIC) i_cls;
-        break;
-      }
-    }
-    i_range++;
-  }
-
-  err = fopen_s(&fp, str_path_bidipb, "r");
   if (err)
     return false;
   o_ud->bidipb_count = CountImportantLines(fp);
@@ -570,7 +259,7 @@ bool lkTryLoadUnicodeDataFromSpec(
   o_ud->bidipb_key = APushArray(arena, u32, o_ud->bidipb_count);
   o_ud->bidipb_value = APushArray(arena, u32, o_ud->bidipb_count);
   o_ud->bidipbt = APushArray(arena, BIDIPBT, o_ud->bidipb_count);
-  i_range = 0;
+  i32 i_range = 0;
   while (fgets(buf, S_MAX_LINE, fp))
   {
     if (!IsHexChar(buf[0]))
@@ -597,9 +286,9 @@ bool lkTryLoadUnicodeDataFromSpec(
   return true;
 }
 
-Glyph GetGlyphAtIndex(const u32 *codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud)
+Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud)
 {
-  Glyph glyph                 = {0};
+Glyph glyph                 = {0};
   if (idx < 0 || idx >= len_codepoints)
   {
     Glyph glyph = {0};
@@ -617,68 +306,13 @@ Glyph GetGlyphAtIndex(const u32 *codepoints, i32 len_codepoints, i32 idx, LkUnic
   INCB incb = INCB_None;
   bool extended_pictographic = false;
 
-  for (int i = 0; i < ud->lb_range_count; i++)
-  {
-    if (codepoint >= ud->lb_range_start[i] && codepoint <= ud->lb_range_end[i])
-    {
-      lbc = ud->lb_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->wb_range_count; i++)
-  {
-    if (codepoint >= ud->wb_range_start[i] && codepoint <= ud->wb_range_end[i])
-    {
-      wbc = ud->wb_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->gb_range_count; i++)
-  {
-    if (codepoint >= ud->gb_range_start[i] && codepoint <= ud->gb_range_end[i])
-    {
-      gbc = ud->gb_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->eaw_range_count; i++)
-  {
-    if (codepoint >= ud->eaw_range_start[i] && codepoint <= ud->eaw_range_end[i])
-    {
-      eaw = ud->eaw_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->gc_count; i++)
-  {
-    if (codepoint == ud->gc_codepoint[i])
-    {
-      gc = ud->gc_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->incb_range_count; i++)
-  {
-    if (codepoint >= ud->incb_range_start[i] && codepoint <= ud->incb_range_end[i])
-    {
-      incb = ud->incb_range_cls[i];
-      break;
-    }
-  }
-
-  for (int i = 0; i < ud->ep_range_count; i++)
-  {
-    if (codepoint >= ud->ep_range_start[i] && codepoint <= ud->ep_range_end[i])
-    {
-      extended_pictographic = true;
-      break;
-    }
-  }
+  lbc = LkTwoStepLookup(ud->ts_lb, codepoint);
+  wbc = LkTwoStepLookup(ud->ts_wb, codepoint);
+  gbc = LkTwoStepLookup(ud->ts_gb, codepoint);
+  gc = LkTwoStepLookup(ud->ts_gc, codepoint);
+  eaw = LkTwoStepLookup(ud->ts_eaw, codepoint);
+  incb = LkTwoStepLookup(ud->ts_incb, codepoint);
+  extended_pictographic = (bool)LkTwoStepLookup(ud->ts_ep, codepoint);
 
   // LB1: Assign a line breaking class to each code point of the input.
   //  Resolve AI, CB, CJ, SA, SG, and XX into other line breaking classes depending on criteria outside the scope of this algorithm.

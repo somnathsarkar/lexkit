@@ -13,3 +13,4 @@ GLuint create_prog(
     const unsigned char* vs, const unsigned int vs_len,
     const unsigned char* fs, const unsigned int fs_len);
 HWND create_window();
+void read_file(const char* cstr_path, char** o_cstr, i32* o_len_cstr);

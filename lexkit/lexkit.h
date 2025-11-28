@@ -64,6 +64,7 @@ struct LkGlyph
   i32 y_advance;
   i32 x_offset;
   i32 y_offset;
+  bool ignore;        // Whether to skip past this glyph, ie LF. All are true/false for any codepoint. 
 
   struct LkGlyph* next;
 };
@@ -110,6 +111,7 @@ void lkLayoutText(
       LkGlyph** glyphs,
       i32 line_count,
       LkLine* lines,
+      const BidiUnit* units,
       i32 w,
       i32 h,
       u64 max_vd,

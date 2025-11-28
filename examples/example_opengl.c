@@ -1,4 +1,6 @@
 #include <examples/example_opengl.h>
+#include <stdio.h>
+#include <assert.h>
 
 LRESULT wndproc(HWND hwnd, UINT umsg, WPARAM wparam, LPARAM lparam)
 {
@@ -143,4 +145,19 @@ HWND create_window()
   ReleaseDC(hwnd, hdc);
   ShowWindow(hwnd, SW_SHOW);
   return hwnd;
+}
+
+void read_file(const char * cstr_path, char** o_cstr, i32* o_len_cstr)
+{
+  FILE* fp = NULL;
+  errno_t err_fopen = fopen_s(&fp, cstr_path, "r");
+  assert(!err_fopen);
+  assert(o_cstr != NULL && *o_cstr == NULL && o_len_cstr != NULL);
+  fseek(fp, 0, SEEK_END);
+  *o_len_cstr = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  *o_cstr = (char*)malloc(sizeof(char) * ((*o_len_cstr) + 1));
+  fread(*o_cstr, sizeof(char), *o_len_cstr, fp);
+  (*o_cstr)[*o_len_cstr] = '\0';
+  fclose(fp);
 }

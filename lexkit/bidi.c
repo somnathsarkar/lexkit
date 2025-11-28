@@ -9,14 +9,7 @@ BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
 {
   BidiUnit ret = {0};
   ret.bidic = BIDIC_L;
-  for (i32 i = 0; i < ud->bidi_range_count; i++)
-  {
-    if (codepoint >= ud->bidi_range_start[i] && codepoint <= ud->bidi_range_end[i])
-    {
-      ret.bidic = ud->bidi_range_cls[i];
-      break;
-    }
-  }
+  ret.bidic = LkTwoStepLookup(ud->ts_bidi, codepoint);
   for (i32 i = 0; i < ud->bidipb_count; i++)
   {
     if (codepoint == ud->bidipb_key[i])
@@ -696,7 +689,6 @@ static void lkSplitBidiRunsParagraph(
     LkArena* arena,
     BidiUnit* units,
     i32 len_units,
-    LkUnicodeData* ud,
     i32 para_start_i,
     i32 para_end_i,
     i32 para_level,
@@ -1140,10 +1132,25 @@ static void lkSplitBidiRunsParagraph(
   lkArenaRestore(scratch, scratch_pos);
 }
 
+void lkComputeBidiUnits(
+    LkArena* arena,
+    const u32* codepoints,
+    i32 len_codepoints,
+    LkUnicodeData* ud,
+    BidiUnit** o_units)
+{
+  assert(o_units != NULL && *o_units == NULL);
+
+  *o_units = APushArray(arena, BidiUnit, len_codepoints);
+  for (i32 i = 0; i < len_codepoints; i++)
+    (*o_units)[i] = BidiUnitCreate(codepoints[i], ud);
+}
+
 void lkSplitParagraphs(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
+    const BidiUnit* units,
     LkUnicodeData* ud,
     i32* o_paragraph_count,
     LkParagraph** o_paragraphs)
@@ -1162,9 +1169,6 @@ void lkSplitParagraphs(
   bool para_level_found = false;
   i32 para_level = 0;
   i32 isolate_count = 0;
-  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
-  for (i32 i = 0; i < len_codepoints; i++)
-    units[i] = BidiUnitCreate(codepoints[i], ud);
   for (i32 i = 0; i < len_codepoints; i++)
   {
     const BidiUnit unit = units[i];
@@ -1244,6 +1248,7 @@ void lkSplitBidiRuns(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
+    BidiUnit* units,
     LkUnicodeData* ud,
     i32 paragraph_count,
     LkParagraph* paragraphs,
@@ -1260,9 +1265,6 @@ void lkSplitBidiRuns(
 
   *o_level_run_count = 0;
 
-  BidiUnit *units = APushArray(scratch, BidiUnit, len_codepoints);
-  for (i32 i = 0; i < len_codepoints; i++)
-    units[i] = BidiUnitCreate(codepoints[i], ud);
   *o_levels = APushArray(arena, i32, len_codepoints);
   i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
   LkLevelRunNode* lrun_list_tail = NULL;
@@ -1274,7 +1276,6 @@ void lkSplitBidiRuns(
           scratch,
           units,
           len_codepoints,
-          ud,
           para_focus->para_start_i,
           para_focus->para_end_i,
           para_focus->para_level,

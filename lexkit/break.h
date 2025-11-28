@@ -3,6 +3,7 @@
 
 #include <lexkit/alloc.h>
 #include <lexkit/types.h>
+#include <lexkit/twostep.h>
 
 // Unicode General Categories
 
@@ -359,44 +360,15 @@ typedef struct
 
 typedef struct
 {
-  u32*  lb_range_start;
-  u32*  lb_range_end;
-  LBC*  lb_range_cls; 
-  i32   lb_range_count;
-
-  u32*  wb_range_start;
-  u32*  wb_range_end;
-  WBC*  wb_range_cls;
-  i32   wb_range_count;
-
-  u32*  gb_range_start;
-  u32*  gb_range_end;
-  GBC*  gb_range_cls;
-  i32   gb_range_count;
-
-  u32*  gc_codepoint;
-  GC*   gc_cls;
-  i32   gc_count;
-
-  u32*  eaw_range_start;
-  u32*  eaw_range_end;
-  EAW*  eaw_range_cls;
-  i32   eaw_range_count;
-
-  u32*  incb_range_start;
-  u32*  incb_range_end;
-  INCB* incb_range_cls;
-  i32   incb_range_count;
-
-  u32*  ep_range_start;
-  u32*  ep_range_end;
-  i32   ep_range_count;
-
-  u32*  bidi_range_start;
-  u32*  bidi_range_end;
-  BIDIC* bidi_range_cls;
-  i32   bidi_range_count;
-
+  LkTwoStep* ts_lb;
+  LkTwoStep* ts_wb;
+  LkTwoStep* ts_gb;
+  LkTwoStep* ts_gc;
+  LkTwoStep* ts_eaw;
+  LkTwoStep* ts_incb;
+  LkTwoStep* ts_ep;
+  LkTwoStep* ts_bidi;
+  
   u32*  bidipb_key;
   u32*  bidipb_value;
   BIDIPBT* bidipbt;
@@ -463,6 +435,14 @@ typedef struct
   WBRK  wbrk;
   GBRK  gbrk;
 } BreakerResult;
+
+extern const char* g_map_lbc_str[];
+extern const char* g_map_wbc_str[];
+extern const char* g_map_gbc_str[];
+extern const char* g_map_gc_str[];
+extern const char* g_map_eaw_str[];
+extern const char* g_map_incb_str[];
+extern const char* g_map_bidic_str[];
 
 struct LkText;
 
