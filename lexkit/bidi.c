@@ -5,17 +5,17 @@
 #include <stdlib.h>
 #include <assert.h>
 
-BidiUnit BidiUnitCreateTwoStep(const u32 codepoint, LkUnicodeDataTwoStep* udts)
+BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
 {
   BidiUnit ret = {0};
   ret.bidic = BIDIC_L;
-  ret.bidic = LkTwoStepLookup(udts->ts_bidi, codepoint);
-  for (i32 i = 0; i < udts->bidipb_count; i++)
+  ret.bidic = LkTwoStepLookup(ud->ts_bidi, codepoint);
+  for (i32 i = 0; i < ud->bidipb_count; i++)
   {
-    if (codepoint == udts->bidipb_key[i])
+    if (codepoint == ud->bidipb_key[i])
     {
-      ret.bidipb = udts->bidipb_value[i];
-      ret.bidipbt = udts->bidipbt[i];
+      ret.bidipb = ud->bidipb_value[i];
+      ret.bidipbt = ud->bidipbt[i];
     }
   }
   if (ret.bidic == BIDIC_NSM)
@@ -1132,26 +1132,26 @@ static void lkSplitBidiRunsParagraph(
   lkArenaRestore(scratch, scratch_pos);
 }
 
-void lkComputeBidiUnitsTwoStep(
+void lkComputeBidiUnits(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     BidiUnit** o_units)
 {
   assert(o_units != NULL && *o_units == NULL);
 
   *o_units = APushArray(arena, BidiUnit, len_codepoints);
   for (i32 i = 0; i < len_codepoints; i++)
-    (*o_units)[i] = BidiUnitCreateTwoStep(codepoints[i], udts);
+    (*o_units)[i] = BidiUnitCreate(codepoints[i], ud);
 }
 
-void lkSplitParagraphsTwoStep(
+void lkSplitParagraphs(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     const BidiUnit* units,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     i32* o_paragraph_count,
     LkParagraph** o_paragraphs)
 {
@@ -1244,12 +1244,12 @@ struct LkLevelRunNode
 
 typedef struct LkLevelRunNode LkLevelRunNode;
 
-void lkSplitBidiRunsTwoStep(
+void lkSplitBidiRuns(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     BidiUnit* units,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     i32 paragraph_count,
     LkParagraph* paragraphs,
     i32** o_levels,

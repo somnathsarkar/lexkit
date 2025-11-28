@@ -34,32 +34,32 @@ typedef struct
   BIDIC bidic_orig;
 } BidiUnit;
 
-BidiUnit BidiUnitCreateTwoStep(const u32 codepoint, LkUnicodeDataTwoStep* udts);
+BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud);
 
 extern const i32 g_bidi_max_depth; // Fixed by Unicode, guaranteed to never change
 
-void lkComputeBidiUnitsTwoStep(
+void lkComputeBidiUnits(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     BidiUnit** o_units);
 
-void lkSplitParagraphsTwoStep(
+void lkSplitParagraphs(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     const BidiUnit* units,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     i32* o_paragraph_count,
     LkParagraph** o_paragraphs);
 
-void lkSplitBidiRunsTwoStep(
+void lkSplitBidiRuns(
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     BidiUnit* units,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     i32 paragraph_count,
     LkParagraph* paragraphs,
     i32** o_levels,

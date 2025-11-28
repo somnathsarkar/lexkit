@@ -160,7 +160,7 @@ typedef struct LkLineTmp LkLineTmp;
 
 LkLine* lkSplitLines(
     LkArena* arena,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -184,7 +184,7 @@ LkLine* lkSplitLines(
   static bool first_render = false;
   int64_t ts = timestamp();
 #endif
-  BreakerResult* breaks = lkGetBreaks(scratch, text, udts);
+  BreakerResult* breaks = lkGetBreaks(scratch, text, ud);
 #if MEASURE_PERF
   if (!first_render)
   {
@@ -486,9 +486,9 @@ static bool IsL1Class(BIDIC bidic)
           bidic == BIDIC_PDI);
 }
 
-void lkLayoutTextTwoStep(
+void lkLayoutText(
       LkArena* arena,
-      LkUnicodeDataTwoStep* udts,
+      LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
       i32* levels,

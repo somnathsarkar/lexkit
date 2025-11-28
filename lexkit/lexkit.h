@@ -93,7 +93,7 @@ void lkShapeText(
     LkGlyph*** o_glyphs);
 LkLine* lkSplitLines(
     LkArena* arena,
-    LkUnicodeDataTwoStep* udts,
+    LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -102,9 +102,9 @@ LkLine* lkSplitLines(
     i32 w,
     i32 h,
     i32* o_line_count);
-void lkLayoutTextTwoStep(
+void lkLayoutText(
       LkArena* arena,
-      LkUnicodeDataTwoStep* udts,
+      LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
       i32* levels,

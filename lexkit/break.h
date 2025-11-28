@@ -373,9 +373,9 @@ typedef struct
   u32*  bidipb_value;
   BIDIPBT* bidipbt;
   u32   bidipb_count;
-} LkUnicodeDataTwoStep;
+} LkUnicodeData;
 
-bool lkTryLoadUnicodeDataFromSpecTwoStep(
+bool lkTryLoadUnicodeDataFromSpec(
     LkArena* arena,
     const char* str_path_lb,
     const char* str_path_wb,
@@ -386,9 +386,9 @@ bool lkTryLoadUnicodeDataFromSpecTwoStep(
     const char* str_path_ep,
     const char* str_path_bidi,
     const char* str_path_bidipb,
-    LkUnicodeDataTwoStep* o_udts);
+    LkUnicodeData* o_ud);
 
-Glyph GetGlyphAtIndexTwoStep(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeDataTwoStep* udts);
+Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);
 
 typedef struct
 {
@@ -447,7 +447,7 @@ extern const char* g_map_bidic_str[];
 struct LkText;
 
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
-BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeDataTwoStep* udts);
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeDataTwoStep* udts);
+BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud);
 
 #endif
