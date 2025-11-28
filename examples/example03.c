@@ -24,7 +24,6 @@ int main() {
   read_file("pg3160.txt", &cstr, &len_cstr);
   int font_size = 72;
   LkArena* arena = lkArenaCreate(Megabytes(64));
-  LkUnicodeData ud = {0};
   LkUnicodeDataTwoStep udts = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpecTwoStep(
       arena,
@@ -37,7 +36,6 @@ int main() {
       "C:/Code/lexkit/lexkit/emoji-data.txt",
       "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
       "C:/Code/lexkit/lexkit/BidiBrackets.txt",
-      &ud,
       &udts);
 
   LkFont font;
@@ -54,9 +52,9 @@ int main() {
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
   BidiUnit* units = NULL;
-  lkComputeBidiUnitsTwoStep(arena, text.codepoints, text.codepoint_count, &ud, &udts, &units);
-  lkSplitParagraphsTwoStep(arena, text.codepoints, text.codepoint_count, units, &ud, &udts, &para_count, &paragraphs);
-  lkSplitBidiRunsTwoStep(arena, text.codepoints, text.codepoint_count, units, &ud, &udts, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  lkComputeBidiUnitsTwoStep(arena, text.codepoints, text.codepoint_count, &udts, &units);
+  lkSplitParagraphsTwoStep(arena, text.codepoints, text.codepoint_count, units, &udts, &para_count, &paragraphs);
+  lkSplitBidiRunsTwoStep(arena, text.codepoints, text.codepoint_count, units, &udts, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 #if MEASURE_PERF
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
@@ -164,11 +162,11 @@ int main() {
 #if MEASURE_PERF
       int64_t ts_frame_start = timestamp();
 #endif
-      LkLine* lines = lkSplitLines(arena, &ud, &udts, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+      LkLine* lines = lkSplitLines(arena, &udts, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
 #if MEASURE_PERF
       int64_t ts_split_lines = timestamp();
 #endif
-      lkLayoutTextTwoStep(arena, &ud, &udts, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
+      lkLayoutTextTwoStep(arena, &udts, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
 #if MEASURE_PERF
       int64_t ts_layout_text = timestamp();
 #endif

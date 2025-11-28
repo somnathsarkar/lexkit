@@ -31,7 +31,6 @@ int main() {
   int font_size = 72;
 
   LkArena* arena = lkArenaCreate(Megabytes(64));
-  LkUnicodeData ud = {0};
   LkUnicodeDataTwoStep udts = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpecTwoStep(
       arena,
@@ -44,7 +43,6 @@ int main() {
       "C:/Code/lexkit/lexkit/emoji-data.txt",
       "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
       "C:/Code/lexkit/lexkit/BidiBrackets.txt",
-      &ud,
       &udts);
 
   LkFont font;
@@ -60,8 +58,10 @@ int main() {
   LkParagraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
-  lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, &ud, &para_count, &paragraphs);
-  lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  BidiUnit* units = NULL;
+  lkComputeBidiUnitsTwoStep(arena, text.codepoints, text.codepoint_count, &udts, &units);
+  lkSplitParagraphsTwoStep(arena, text.codepoints, text.codepoint_count, units, &udts, &para_count, &paragraphs);
+  lkSplitBidiRunsTwoStep(arena, text.codepoints, text.codepoint_count, units, &udts, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 #if MEASURE_PERF
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
@@ -165,8 +165,8 @@ int main() {
       u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
       i32 line_count = -1;
-      LkLine* lines = lkSplitLines(arena, &ud, &udts, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
-      lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, w, h, 10240, vd, &vdc);
+      LkLine* lines = lkSplitLines(arena, &udts, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+      lkLayoutTextTwoStep(arena, &udts, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
       lkArenaRestore(arena, frame_pos);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);

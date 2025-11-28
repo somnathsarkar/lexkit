@@ -68,11 +68,3 @@ target_sources(
 target_include_directories(example03 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(example03 PRIVATE Opengl32.lib lexkit)
 target_shaders(example03 PRIVATE fullscreen.frag fullscreen.vert text.frag text.vert)
-
-add_executable(test_twostep)
-target_sources(
-  test_twostep PRIVATE
-  examples/test_twostep.c
-)
-target_include_directories(test_twostep PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(test_twostep PRIVATE Opengl32.lib lexkit)

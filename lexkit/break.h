@@ -360,52 +360,6 @@ typedef struct
 
 typedef struct
 {
-  u32*  lb_range_start;
-  u32*  lb_range_end;
-  LBC*  lb_range_cls; 
-  i32   lb_range_count;
-
-  u32*  wb_range_start;
-  u32*  wb_range_end;
-  WBC*  wb_range_cls;
-  i32   wb_range_count;
-
-  u32*  gb_range_start;
-  u32*  gb_range_end;
-  GBC*  gb_range_cls;
-  i32   gb_range_count;
-
-  u32*  gc_codepoint;
-  GC*   gc_cls;
-  i32   gc_count;
-
-  u32*  eaw_range_start;
-  u32*  eaw_range_end;
-  EAW*  eaw_range_cls;
-  i32   eaw_range_count;
-
-  u32*  incb_range_start;
-  u32*  incb_range_end;
-  INCB* incb_range_cls;
-  i32   incb_range_count;
-
-  u32*  ep_range_start;
-  u32*  ep_range_end;
-  i32   ep_range_count;
-
-  u32*  bidi_range_start;
-  u32*  bidi_range_end;
-  BIDIC* bidi_range_cls;
-  i32   bidi_range_count;
-
-  u32*  bidipb_key;
-  u32*  bidipb_value;
-  BIDIPBT* bidipbt;
-  u32   bidipb_count;
-} LkUnicodeData;
-
-typedef struct
-{
   LkTwoStep* ts_lb;
   LkTwoStep* ts_wb;
   LkTwoStep* ts_gb;
@@ -414,20 +368,12 @@ typedef struct
   LkTwoStep* ts_incb;
   LkTwoStep* ts_ep;
   LkTwoStep* ts_bidi;
+  
+  u32*  bidipb_key;
+  u32*  bidipb_value;
+  BIDIPBT* bidipbt;
+  u32   bidipb_count;
 } LkUnicodeDataTwoStep;
-
-bool lkTryLoadUnicodeDataFromSpec(
-    LkArena* arena,
-    const char* str_path_lb,
-    const char* str_path_wb,
-    const char* str_path_gb,
-    const char* str_path_gc,
-    const char* str_path_eaw,
-    const char* str_path_incb,
-    const char* str_path_ep,
-    const char* str_path_bidi,
-    const char* str_path_bidipb,
-    LkUnicodeData* o_ud);
 
 bool lkTryLoadUnicodeDataFromSpecTwoStep(
     LkArena* arena,
@@ -440,11 +386,9 @@ bool lkTryLoadUnicodeDataFromSpecTwoStep(
     const char* str_path_ep,
     const char* str_path_bidi,
     const char* str_path_bidipb,
-    LkUnicodeData* o_ud,
     LkUnicodeDataTwoStep* o_udts);
 
-Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);
-Glyph GetGlyphAtIndexTwoStep(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts);
+Glyph GetGlyphAtIndexTwoStep(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeDataTwoStep* udts);
 
 typedef struct
 {
@@ -503,7 +447,7 @@ extern const char* g_map_bidic_str[];
 struct LkText;
 
 void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
-BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts);
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud, LkUnicodeDataTwoStep* udts);
+BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeDataTwoStep* udts);
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeDataTwoStep* udts);
 
 #endif

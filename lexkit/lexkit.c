@@ -160,7 +160,6 @@ typedef struct LkLineTmp LkLineTmp;
 
 LkLine* lkSplitLines(
     LkArena* arena,
-    LkUnicodeData* ud,
     LkUnicodeDataTwoStep* udts,
     LkFont* font,
     LkText* text,
@@ -185,7 +184,7 @@ LkLine* lkSplitLines(
   static bool first_render = false;
   int64_t ts = timestamp();
 #endif
-  BreakerResult* breaks = lkGetBreaks(scratch, text, ud, udts);
+  BreakerResult* breaks = lkGetBreaks(scratch, text, udts);
 #if MEASURE_PERF
   if (!first_render)
   {
@@ -487,167 +486,8 @@ static bool IsL1Class(BIDIC bidic)
           bidic == BIDIC_PDI);
 }
 
-void lkLayoutText(
-      LkArena* arena,
-      LkUnicodeData* ud,
-      LkFont* font,
-      LkText* text,
-      i32* levels,
-      LkGlyph** glyphs,
-      i32 line_count,
-      LkLine* lines,
-      i32 w,
-      i32 h,
-      u64 max_vd,
-      LkVertexDescriptor_Text* o_vd,
-      i32* o_vd_count)
-{
-  LkArena* scratch = arena->alt;
-  i32 vdc = 0;
-  float cursor_x = 0.0;
-  float cursor_y = 0.0;
-  LkFontAtlasGlyph aglyph = {0};
-  for (i32 line_i = 0; line_i < line_count; line_i++)
-  {
-    u64 scratch_line_pos = scratch->pos;
-    i32 line_codepoint_count = lines[line_i].end_i - lines[line_i].start_i;
-
-    // L1
-
-    i32* level_line = APushArray(scratch, i32, line_codepoint_count);
-    BidiUnit* units = APushArray(scratch, BidiUnit, line_codepoint_count);
-    for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
-    {
-      level_line[codepoint_i - lines[line_i].start_i] = levels[codepoint_i];
-      units[codepoint_i - lines[line_i].start_i] = BidiUnitCreate(text->codepoints[codepoint_i], ud);
-    }
-    bool reset_fsi_lri_rli_pdi = true;
-    for (i32 line_codepoint_i = line_codepoint_count - 1; line_codepoint_i >= 0; line_codepoint_i--)
-    {
-      if (IsL1Class(units[line_codepoint_i].bidic) && reset_fsi_lri_rli_pdi)
-      {
-        level_line[line_codepoint_i] = lines[line_i].para_level;
-      }
-      else if (units[line_codepoint_i].bidic == BIDIC_B &&
-                units[line_codepoint_i].bidic == BIDIC_S)
-      {
-        level_line[line_codepoint_i] = lines[line_i].para_level;
-        reset_fsi_lri_rli_pdi = true;
-      }
-      else
-      {
-        reset_fsi_lri_rli_pdi = false;
-      }
-    }
-
-    // L2
-
-    i32* codepoint_orders = APushArray(scratch, i32, line_codepoint_count);
-    for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
-    {
-      codepoint_orders[codepoint_i - lines[line_i].start_i] = codepoint_i;
-    }
-    for (i32 level_i = g_bidi_max_depth + 2; level_i > 0; level_i--)
-    {
-      i32 focus = 0;
-      while (focus < line_codepoint_count)
-      {
-        if (level_line[focus] < level_i)
-        {
-          focus++;
-          continue;
-        }
-        assert(level_line[focus] == level_i);
-        i32 block_start_i = focus;
-        i32 block_end_i = focus;
-        while (focus < line_codepoint_count && level_line[focus] == level_i)
-        {
-          block_end_i = focus;
-          focus++;
-        }
-        i32 rfocus = block_start_i;
-		
-		// Reverse block of contiguous glyphs at the same level
-		
-        while (block_end_i + block_start_i - rfocus > rfocus)
-        {
-          // Swap
-
-          i32 a = codepoint_orders[rfocus];
-          i32 b = codepoint_orders[block_end_i + block_start_i - rfocus];
-          codepoint_orders[rfocus] = b;
-          codepoint_orders[block_end_i + block_start_i - rfocus] = a;
-          rfocus++;
-        }
-        for (i32 block_i = block_start_i; block_i <= block_end_i; block_i++)
-        {
-          level_line[block_i] = level_i - 1;
-        }
-      }
-    }
-
-    // NOTE: Not implementing L3, L4. Are they required or implicitly handled by HarfBuzz??
-
-    for (i32 codepoint_order_i = 0; codepoint_order_i < line_codepoint_count; codepoint_order_i++)
-    {
-      i32 codepoint_i = codepoint_orders[codepoint_order_i];
-      LkGlyph* focus_glyph = glyphs[codepoint_i];
-      while (focus_glyph != NULL && !focus_glyph->ignore)
-      {
-        aglyph = font->glyphs[focus_glyph->glyph_index];
-        LkVertexDescriptor_Text v = {
-          ((cursor_x + focus_glyph->x_offset) / 64.0f + aglyph.bitmap_left) / w,
-          ((cursor_y + focus_glyph->y_offset + font->ascent) / 64.0f - aglyph.bitmap_top) / h,
-          ((float) aglyph.bitmap_width) / w,
-          ((float) aglyph.bitmap_rows) / h,
-          aglyph.u_min,
-          aglyph.v_min,
-          aglyph.u_max,
-          aglyph.v_max
-        };
-
-        // TODO: Rethink this. Need to stop outputting vds after we've exceeded height.
-        //  Probably at the lkSplitLines level.
-
-        if (vdc + 1 >= max_vd)
-          goto end;
-        o_vd[vdc++] = v;
-        cursor_x += (lines[line_i].hyphen_end &&
-                      codepoint_i + 1 >= lines[line_i].end_i &&
-                      focus_glyph->next == NULL) ?
-                      aglyph.x_advance_hyphen :
-                      focus_glyph->x_advance;
-        focus_glyph = focus_glyph->next;
-      }
-    }
-    if (lines[line_i].hyphen_end)
-    {
-      LkFontAtlasGlyph aglyph_hyphen = font->glyphs[font->hyphen_glyph_i];
-      LkVertexDescriptor_Text v = {
-        ((cursor_x + aglyph.x_offset_hyphen) / 64.0f + aglyph_hyphen.bitmap_left) / w,
-        ((cursor_y + aglyph.y_offset_hyphen + font->ascent) / 64.0f - aglyph_hyphen.bitmap_top) / h,
-        ((float) aglyph_hyphen.bitmap_width) / w,
-        ((float) aglyph_hyphen.bitmap_rows) / h,
-        aglyph_hyphen.u_min,
-        aglyph_hyphen.v_min,
-        aglyph_hyphen.u_max,
-        aglyph_hyphen.v_max
-      };
-      if (vdc + 1 >= max_vd)
-        goto end;
-      o_vd[vdc++] = v;
-    }
-end:
-    cursor_x = 0.0f;
-    cursor_y += font->line_gap;
-    lkArenaRestore(scratch, scratch_line_pos);
-  }
-  *o_vd_count = vdc;
-}
-
 void lkLayoutTextTwoStep(
       LkArena* arena,
-      LkUnicodeData* ud,
       LkUnicodeDataTwoStep* udts,
       LkFont* font,
       LkText* text,
