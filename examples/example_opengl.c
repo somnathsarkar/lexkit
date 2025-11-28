@@ -149,15 +149,33 @@ HWND create_window()
 
 void read_file(const char * cstr_path, char** o_cstr, i32* o_len_cstr)
 {
+  assert(o_cstr != NULL && *o_cstr == NULL && o_len_cstr != NULL);
+  i32 len_cstr = 0;
   FILE* fp = NULL;
   errno_t err_fopen = fopen_s(&fp, cstr_path, "r");
   assert(!err_fopen);
-  assert(o_cstr != NULL && *o_cstr == NULL && o_len_cstr != NULL);
   fseek(fp, 0, SEEK_END);
-  *o_len_cstr = ftell(fp);
+  len_cstr = ftell(fp);
   fseek(fp, 0, SEEK_SET);
-  *o_cstr = (char*)malloc(sizeof(char) * ((*o_len_cstr) + 1));
-  fread(*o_cstr, sizeof(char), *o_len_cstr, fp);
-  (*o_cstr)[*o_len_cstr] = '\0';
+  
+  // Check for Byte Order Mark
+
+  if (len_cstr >= 3)
+  {
+    char buf_bom[3];
+    fread(buf_bom, sizeof(char), 3, fp);
+    if (buf_bom[0] == (char)0xEF && buf_bom[1] == (char)0xBB && buf_bom[2] == (char)0xBF)
+    {
+      fseek(fp, 3, SEEK_SET);
+      len_cstr -= 3;
+    }
+    else
+      fseek(fp, 0, SEEK_SET);
+  }
+
+  *o_cstr = (char*)malloc(sizeof(char) * (len_cstr + 1));
+  fread(*o_cstr, sizeof(char), len_cstr, fp);
+  (*o_cstr)[len_cstr] = '\0';
   fclose(fp);
+  *o_len_cstr = len_cstr;
 }
