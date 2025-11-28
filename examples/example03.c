@@ -19,18 +19,10 @@
 LkVertexDescriptor_Text vd[10240] = {0};
 
 int main() {
-  FILE* fp = NULL;
-  errno_t err_fopen = fopen_s(&fp, "pg3160.txt", "r");
-  assert(!err_fopen);
-  char* cstr = NULL;
-  fseek(fp, 0, SEEK_END);
-  i32 len_cstr = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-  cstr = (char*)malloc(sizeof(char) * len_cstr);
-  fread(cstr, sizeof(char), len_cstr, fp);
-  cstr[len_cstr - 1] = '\0';
+  char * cstr = NULL;
+  i32 len_cstr = 0;
+  read_file("pg3160.txt", &cstr, &len_cstr);
   int font_size = 72;
-
   LkArena* arena = lkArenaCreate(Megabytes(64));
   LkUnicodeData ud = {0};
   LkUnicodeDataTwoStep udts = {0};
