@@ -383,7 +383,7 @@ LkLine* lkSplitLines(
 
 bool IgnoreCodepointDuringShaping(u32 codepoint)
 {
-  return codepoint == 10; // LF
+  return (codepoint == 10) || (codepoint == 13); // LF or CR
 }
 
 void lkShapeText(
