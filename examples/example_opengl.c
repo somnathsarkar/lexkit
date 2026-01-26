@@ -152,7 +152,7 @@ void read_file(const char * cstr_path, char** o_cstr, i32* o_len_cstr)
   assert(o_cstr != NULL && *o_cstr == NULL && o_len_cstr != NULL);
   i32 len_cstr = 0;
   FILE* fp = NULL;
-  errno_t err_fopen = fopen_s(&fp, cstr_path, "rb");
+  errno_t err_fopen = fopen_s(&fp, cstr_path, "r");
   assert(!err_fopen);
   fseek(fp, 0, SEEK_END);
   len_cstr = ftell(fp);

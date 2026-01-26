@@ -23,7 +23,7 @@ int main() {
   i32 len_cstr = 0;
   read_file("pg3160.txt", &cstr, &len_cstr);
   int font_size = 72;
-  LkArena* arena = lkArenaCreate(Megabytes(64));
+  LkArena* arena = lkArenaCreate(Megabytes(128));
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(
       arena,
@@ -52,11 +52,28 @@ int main() {
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
   BidiUnit* units = NULL;
+#if MEASURE_PERF
+  int64_t ts_precomputebidiunits = timestamp();
+  printf("lkCreateText: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
+#endif
   lkComputeBidiUnits(arena, text.codepoints, text.codepoint_count, &ud, &units);
+#if MEASURE_PERF
+  int64_t ts_presplitparagraphs = timestamp();
+  printf("lkComputeBidiUnits: %g ms\n", ((timestamp() - ts_precomputebidiunits) * 1000.0)/timestamp_res());
+#endif
   lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, units, &ud, &para_count, &paragraphs);
+#if MEASURE_PERF
+  int64_t ts_presplitbidiruns = timestamp();
+  printf("lkSplitParagraphs: %g ms\n", ((timestamp() - ts_presplitparagraphs) * 1000.0)/timestamp_res());
+#endif
   lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, units, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+#if MEASURE_PERF
+  int64_t ts_preshapetext = timestamp();
+  printf("lkSplitBidiRuns: %g ms\n", ((timestamp() - ts_presplitbidiruns) * 1000.0)/timestamp_res());
+#endif
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 #if MEASURE_PERF
+  printf("lkShapeText: %g ms\n", ((timestamp() - ts_preshapetext) * 1000.0)/timestamp_res());
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
 #endif
 
