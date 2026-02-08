@@ -286,9 +286,9 @@ bool lkTryLoadUnicodeDataFromSpec(
   return true;
 }
 
-Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud)
+static Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud)
 {
-Glyph glyph                 = {0};
+  Glyph glyph = {0};
   if (idx < 0 || idx >= len_codepoints)
   {
     Glyph glyph = {0};
@@ -338,11 +338,16 @@ Glyph glyph                 = {0};
   return glyph;
 }
 
-void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk)
+void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, LkUnicodeData* ud, Breaker* o_brk)
 {
   o_brk->codepoints = codepoints;
   o_brk->len_codepoints = len_codepoints;
   o_brk->idx = -1;
+  o_brk->glyphs = APushArray(arena, Glyph, len_codepoints);
+  for (int i = 0; i < len_codepoints; i++)
+  {
+    o_brk->glyphs[i] = GetGlyphAtIndex(codepoints, len_codepoints, i, ud);
+  }
 }
 
 static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
@@ -353,7 +358,7 @@ static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* 
   while ((*io_idx_next) + 1 < brk->len_codepoints)
   {
     (*io_idx_next)++;
-    (*o_g) = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, *io_idx_next, ud);
+    (*o_g) = brk->glyphs[*io_idx_next];
     if (o_g->lbc != LBC_ZWJ &&
         o_g->lbc != LBC_CM)
     {
@@ -379,7 +384,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
     return LBRK_MAN;
   }
 
-  Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud);
+  Glyph g = brk->glyphs[brk->idx + 1];
 
   // LB5
 
@@ -836,7 +841,7 @@ static void BreakerGetNextGlyphWordBreak(Breaker* brk, LkUnicodeData* ud, bool* 
   while ((*io_idx_next) + 1 < brk->len_codepoints)
   {
     (*io_idx_next)++;
-    (*o_g) = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, *io_idx_next, ud);
+    (*o_g) = brk->glyphs[*io_idx_next];
     if (o_g->wbc != WBC_CR &&
         o_g->wbc != WBC_LF &&
         o_g->wbc != WBC_Newline)
@@ -866,7 +871,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
     return WBRK_BRK;
   }
 
-  Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud);
+  Glyph g = brk->glyphs[brk->idx + 1];
 
   // WB3
 
@@ -1078,7 +1083,7 @@ GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
     return GBRK_BRK;
   }
 
-  Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx + 1, ud);
+  Glyph g = brk->glyphs[brk->idx + 1];
 
   // GB3
 
@@ -1204,7 +1209,7 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   brk->idx++;
   if (brk->idx == 0)
   {
-    Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, 0, ud);
+    Glyph g = brk->glyphs[0];
     brk->lbcx = (LBCX) g.lbc;
     brk->lbcx_adj = brk->lbcx;
     brk->wbcx = (WBCX) g.wbc;
@@ -1244,7 +1249,7 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   }
   else
   {
-    Glyph g = GetGlyphAtIndex(brk->codepoints, brk->len_codepoints, brk->idx, ud);
+    Glyph g = brk->glyphs[brk->idx];
     LBCX lbcx_new = brk->lbcx;
     LBCX s = brk->lbcx_adj;
     LBC e = g.lbc;
@@ -1517,12 +1522,14 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
 
 BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud)
 {
+  u64 arena_pos = lkArenaGetPos(arena->alt);
   BreakerResult* breaks = APushArray(arena, BreakerResult, text->codepoint_count);
   Breaker brk = {0};
-  BreakerCreate(text->codepoints, text->codepoint_count, &brk);
+  BreakerCreate(arena->alt, text->codepoints, text->codepoint_count, ud, &brk);
   for (i32 i = 0; i < text->codepoint_count; i++)
   {
     breaks[i] = BreakerAdvance(&brk, ud);
   }
+  lkArenaRestore(arena->alt, arena_pos);
   return breaks;
 }

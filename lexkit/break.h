@@ -388,11 +388,10 @@ bool lkTryLoadUnicodeDataFromSpec(
     const char* str_path_bidipb,
     LkUnicodeData* o_ud);
 
-Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud);
-
 typedef struct
 {
   const u32*  codepoints;
+  Glyph*      glyphs;
   i32         len_codepoints;
   i32         idx;
 
@@ -446,7 +445,7 @@ extern const char* g_map_bidic_str[];
 
 struct LkText;
 
-void BreakerCreate(const u32* codepoints, i32 len_codepoints, Breaker* o_brk);
+void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, LkUnicodeData* ud, Breaker* o_brk);
 BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
 BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud);
 
