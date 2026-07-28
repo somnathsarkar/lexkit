@@ -486,6 +486,114 @@ static bool IsL1Class(BIDIC bidic)
           bidic == BIDIC_PDI);
 }
 
+typedef struct
+{
+  bool is_leaf;
+  i32 level;
+  i32 start;
+  i32 sz;
+  i32 first_child;
+  i32 last_child;
+  i32 next_sibling;
+  i32 prev_sibling;
+} L2ReversalNode;
+
+i32 BuildL2ReversalTree(
+      i32* level_line,
+      i32 line_codepoint_count,
+      i32 level,
+      i32 level_start,
+      i32* o_first_child,
+      i32* o_node_count,
+      L2ReversalNode* o_tree)
+{
+  int node_sz = 0;
+  int focus = level_start;
+  i32 prev_sibling = -1;
+  while (focus < line_codepoint_count && level_line[focus] >= level)
+  {
+    if (level_line[focus] == level)
+    {
+      int node_start = focus;
+      while (focus < line_codepoint_count && level_line[focus] == level)
+      {
+        focus++;
+      }
+      if (*o_first_child == -1)
+      {
+        *o_first_child = *o_node_count;
+      }
+      if (prev_sibling != -1)
+      {
+        o_tree[prev_sibling].next_sibling = *o_node_count;
+      }
+      o_tree[(*o_node_count)] = (L2ReversalNode){ true, level, node_start, focus - node_start, -1, -1, -1, prev_sibling };
+      prev_sibling = *o_node_count;
+      (*o_node_count)++;
+      node_sz += focus - node_start;
+    }
+    else
+    {
+      i32 first_child = -1;
+      i32 new_focus = BuildL2ReversalTree(level_line, line_codepoint_count, level + 1, focus, &first_child, o_node_count, o_tree);
+      assert(first_child < *o_node_count);
+      i32 last_child = (*o_node_count) - 1;
+      if (*o_first_child == -1)
+      {
+        *o_first_child = *o_node_count;
+      }
+      if (prev_sibling != -1)
+      {
+        o_tree[prev_sibling].next_sibling = *o_node_count;
+      }
+      o_tree[(*o_node_count)] = (L2ReversalNode){ false, level + 1, focus, new_focus - focus, first_child, last_child, -1, prev_sibling };
+      prev_sibling = *o_node_count;
+      (*o_node_count)++;
+      node_sz += new_focus - focus;
+      focus = new_focus;
+    }
+  }
+  return focus;
+}
+
+void PerformL2Reversals(
+  LkLine line,
+  L2ReversalNode* tree,
+  i32 focus,
+  i32 focus_start,
+  i32* o_codepoint_orders)
+{
+  L2ReversalNode fnode = tree[focus];
+  i32 pos = focus_start;
+  bool is_reversed = (tree[focus].level & 1) ? true : false;
+  i32 child_iter = is_reversed ? fnode.last_child : fnode.first_child;
+  while (child_iter != -1)
+  {
+    i32 child_start = tree[child_iter].start;
+    i32 child_sz = tree[child_iter].sz;
+    if (tree[child_iter].is_leaf)
+    {
+      if (is_reversed)
+      {
+        for (int i = 0; i < child_sz; i++)
+          o_codepoint_orders[pos + i] = line.start_i + child_start + child_sz - 1 - i;
+      }
+      else
+      {
+        for (int i = 0; i < child_sz; i++)
+          o_codepoint_orders[pos + i] = line.start_i + child_start + i;
+      }
+      pos += child_sz;
+    }
+    else
+    {
+      PerformL2Reversals(line, tree, child_iter, pos, o_codepoint_orders);
+      pos += child_sz;
+    }
+    child_iter = is_reversed ? tree[child_iter].prev_sibling : tree[child_iter].next_sibling;
+  }
+}
+
 void lkLayoutText(
       LkArena* arena,
       LkUnicodeData* ud,
@@ -541,48 +649,12 @@ void lkLayoutText(
     // L2
 
     i32* codepoint_orders = APushArray(scratch, i32, line_codepoint_count);
-    for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
-    {
-      codepoint_orders[codepoint_i - lines[line_i].start_i] = codepoint_i;
-    }
-    for (i32 level_i = g_bidi_max_depth + 2; level_i > 0; level_i--)
-    {
-      i32 focus = 0;
-      while (focus < line_codepoint_count)
-      {
-        if (level_line[focus] < level_i)
-        {
-          focus++;
-          continue;
-        }
-        assert(level_line[focus] == level_i);
-        i32 block_start_i = focus;
-        i32 block_end_i = focus;
-        while (focus < line_codepoint_count && level_line[focus] == level_i)
-        {
-          block_end_i = focus;
-          focus++;
-        }
-        i32 rfocus = block_start_i;
-		
-		// Reverse block of contiguous glyphs at the same level
-		
-        while (block_end_i + block_start_i - rfocus > rfocus)
-        {
-          // Swap
-
-          i32 a = codepoint_orders[rfocus];
-          i32 b = codepoint_orders[block_end_i + block_start_i - rfocus];
-          codepoint_orders[rfocus] = b;
-          codepoint_orders[block_end_i + block_start_i - rfocus] = a;
-          rfocus++;
-        }
-        for (i32 block_i = block_start_i; block_i <= block_end_i; block_i++)
-        {
-          level_line[block_i] = level_i - 1;
-        }
-      }
-    }
+    L2ReversalNode* l2_nodes = APushArray(scratch, L2ReversalNode, line_codepoint_count);
+    i32 l2_node_count = 1;
+    l2_nodes[0] = (L2ReversalNode) { false, 0, 0, line_codepoint_count, -1, -1, -1, -1 };
+    BuildL2ReversalTree(level_line, line_codepoint_count, 0, 0, &l2_nodes[0].first_child, &l2_node_count, l2_nodes);
+    l2_nodes[0].last_child = l2_node_count - 1;
+    PerformL2Reversals(lines[line_i], l2_nodes, 0, 0, codepoint_orders);
 
     // NOTE: Not implementing L3, L4. Are they required or implicitly handled by HarfBuzz??
 
