@@ -5,7 +5,9 @@
 #include <assert.h>
 
 #define S_MAX_LINE 256
-#define BLOCK_SIZE 256
+#define BLOCK_P2 8
+#define BLOCK_SIZE (1 << BLOCK_P2)
+#define BLOCK_MASK ((1 << BLOCK_P2) - 1)
 
 static bool IsHexChar(char c)
 {
@@ -356,4 +358,24 @@ i32 LkTwoStepLookup(LkTwoStep* ts, u32 ch)
   assert(block1_i < ts->block1_len);
   return ts->block1[block1_i];
 }
+
+#ifndef __AVX2__
+#error AVX2 required!
+#endif
+
+#ifdef __AVX2__
+
+__m128i LkTwoStepLookupAvx2(LkTwoStep* ts, __m128i ch)
+{
+  const __m128i block_mask = _mm_set1_epi32(BLOCK_MASK);
+  __m128i block0_i = _mm_srli_epi32(ch, BLOCK_P2);
+  __m128i block1_idx = _mm_i32gather_epi32(ts->block0, block0_i, 4);
+  __m128i block1_start = _mm_srai_epi32(block1_idx, BLOCK_P2);
+  __m128i block1_offset = _mm_and_epi32(ch, block_mask);
+  __m128i block1_i = _mm_add_epi32(block1_start, block1_offset);
+  __m128i lk_result = _mm_i32gather_epi32(ts->block1, block1_i, 4);
+  return lk_result;
+}
+
+#endif
 

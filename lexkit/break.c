@@ -6,6 +6,8 @@
 #include <string.h>
 #include <assert.h>
 
+#include <immintrin.h>
+
 #define UNICODE_REPLACEMENT_CHARACTER 0xFFFD
 
 const char* g_map_gc_str[] = {
@@ -338,16 +340,96 @@ static Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx,
   return glyph;
 }
 
+#ifdef __AVX2__
+
+static void GetGlyphAtIndexAvx2(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud, Glyph* o_glyphs)
+{
+  assert (idx >= 0 || idx < len_codepoints);
+
+  int num_valid = ((len_codepoints - idx) >= 4) ? 4 : (len_codepoints - idx);
+  int idx_arr[4];
+  for (int i = 0; i < 4; i++)
+  {
+    idx_arr[i] = (i < num_valid) ? idx + i : 0;
+  }
+
+  // Get codepoint
+
+  __m128i idx_vec = _mm_loadu_epi32(idx_arr);
+  __m128i codepoint_vec = _mm_i32gather_epi32(codepoints, idx_vec, 4);
+
+  __m128i lbc_vec = LkTwoStepLookupAvx2(ud->ts_lb, codepoint_vec);
+  __m128i wbc_vec = LkTwoStepLookupAvx2(ud->ts_wb, codepoint_vec);
+  __m128i gbc_vec = LkTwoStepLookupAvx2(ud->ts_gb, codepoint_vec);
+  __m128i gc_vec = LkTwoStepLookupAvx2(ud->ts_gc, codepoint_vec);
+  __m128i eaw_vec = LkTwoStepLookupAvx2(ud->ts_eaw, codepoint_vec);
+  __m128i incb_vec = LkTwoStepLookupAvx2(ud->ts_incb, codepoint_vec);
+  __m128i extended_pictographic_vec = LkTwoStepLookupAvx2(ud->ts_ep, codepoint_vec);
+
+  LBC lbc[4];
+  WBC wbc[4];
+  GBC gbc[4];
+  GC gc[4];
+  EAW eaw[4];
+  INCB incb[4];
+  i32 extended_pictographic[4];
+
+  _mm_storeu_si128((__m128i*)lbc, lbc_vec);
+  _mm_storeu_si128((__m128i*)wbc, wbc_vec);
+  _mm_storeu_si128((__m128i*)gbc, gbc_vec);
+  _mm_storeu_si128((__m128i*)gc, gc_vec);
+  _mm_storeu_si128((__m128i*)eaw, eaw_vec);
+  _mm_storeu_si128((__m128i*)incb, incb_vec);
+  _mm_storeu_si128((__m128i*)extended_pictographic, extended_pictographic_vec);
+
+  // LB1: Assign a line breaking class to each code point of the input.
+  //  Resolve AI, CB, CJ, SA, SG, and XX into other line breaking classes depending on criteria outside the scope of this algorithm.
+
+  for (int i = 0; i < num_valid; i++)
+  {
+    if (lbc[i] == LBC_AI || lbc[i] == LBC_SG || lbc[i] == LBC_XX)
+      lbc[i] = LBC_AL;
+    else if (lbc[i] == LBC_SA && (gc[i] == GC_Mn || gc[i] == GC_Mc))
+      lbc[i] = LBC_CM;
+    else if (lbc[i] == LBC_SA)
+      lbc[i] = LBC_AL;
+    else if (lbc[i] == LBC_CJ)
+      lbc[i] = LBC_NS;
+  }
+
+  for (int i = 0; i < num_valid; i++)
+  {
+    o_glyphs[idx + i].idx                   = idx + i;
+    o_glyphs[idx + i].codepoint             = codepoints[idx + i];
+    o_glyphs[idx + i].lbc                   = lbc[i];
+    o_glyphs[idx + i].wbc                   = wbc[i];
+    o_glyphs[idx + i].gbc                   = gbc[i];
+    o_glyphs[idx + i].gc                    = gc[i];
+    o_glyphs[idx + i].eaw                   = eaw[i];
+    o_glyphs[idx + i].incb                  = incb[i];
+    o_glyphs[idx + i].extended_pictographic = extended_pictographic[i];
+  }
+}
+
+#endif
+
 void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, LkUnicodeData* ud, Breaker* o_brk)
 {
   o_brk->codepoints = codepoints;
   o_brk->len_codepoints = len_codepoints;
   o_brk->idx = -1;
   o_brk->glyphs = APushArray(arena, Glyph, len_codepoints);
+#ifdef __AVX2__
+  for (int i = 0; i < len_codepoints; i += 4)
+  {
+    GetGlyphAtIndexAvx2(codepoints, len_codepoints, i, ud, o_brk->glyphs);
+  }
+#else
   for (int i = 0; i < len_codepoints; i++)
   {
     o_brk->glyphs[i] = GetGlyphAtIndex(codepoints, len_codepoints, i, ud);
   }
+#endif
 }
 
 static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)

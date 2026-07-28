@@ -14,6 +14,7 @@ target_sources(
 target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
 target_link_directories(lexkit PUBLIC C:/Dev/harfbuzz-10.2.0/build/$(ConfigurationName) C:/Dev/freetype-2.13.3/build/$(ConfigurationName))
 target_link_libraries(lexkit PUBLIC harfbuzz.lib debug freetyped.lib optimized freetype.lib)
+target_compile_options(lexkit PUBLIC /arch:AVX2)
 
 add_executable(example01)
 target_sources(
