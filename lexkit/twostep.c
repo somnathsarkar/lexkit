@@ -370,7 +370,7 @@ __m128i LkTwoStepLookupAvx2(LkTwoStep* ts, __m128i ch)
   const __m128i block_mask = _mm_set1_epi32(BLOCK_MASK);
   __m128i block0_i = _mm_srli_epi32(ch, BLOCK_P2);
   __m128i block1_idx = _mm_i32gather_epi32(ts->block0, block0_i, 4);
-  __m128i block1_start = _mm_srai_epi32(block1_idx, BLOCK_P2);
+  __m128i block1_start = _mm_slli_epi32(block1_idx, BLOCK_P2);
   __m128i block1_offset = _mm_and_epi32(ch, block_mask);
   __m128i block1_i = _mm_add_epi32(block1_start, block1_offset);
   __m128i lk_result = _mm_i32gather_epi32(ts->block1, block1_i, 4);
