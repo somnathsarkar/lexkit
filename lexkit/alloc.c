@@ -1,6 +1,7 @@
 #include <lexkit/alloc.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 LkArena* lkArenaCreate(u64 sz)
 {
@@ -46,7 +47,9 @@ u64 lkArenaGetPos(LkArena* arena)
 void lkArenaRestore(LkArena* arena, u64 pos)
 {
   assert(pos >= 0 && pos <= arena->pos);
-  for (u64 pos_i = pos; pos_i < arena->pos; pos_i++)
-    ((char*)arena->data)[pos_i] = 0;
-  arena->pos = (pos <= arena->pos) ? pos : arena->pos;
+  if (pos < arena->pos)
+  {
+    memset((char*)(arena->data) + pos, 0, arena->pos - pos);
+    arena->pos = pos;
+  }
 }
