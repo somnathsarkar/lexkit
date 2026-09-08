@@ -226,32 +226,24 @@ static i32 CountImportantLinesEmoji(FILE* fp)
 
 bool lkTryLoadUnicodeDataFromSpec(
     LkArena* arena,
-    const char* str_path_lb,
-    const char* str_path_wb,
-    const char* str_path_gb,
-    const char* str_path_gc,
-    const char* str_path_eaw,
-    const char* str_path_incb,
-    const char* str_path_ep,
-    const char* str_path_bidi,
-    const char* str_path_bidipb,
+    LkUnicodeSpecInfo* spec_info,
     LkUnicodeData* o_ud)
 {
   assert(o_ud != NULL);
   
-  o_ud->ts_lb = LkTwoStepCreate(arena, str_path_lb, g_map_lbc_str, LBC_Count, LBC_XX, UNIFMT_A);
-  o_ud->ts_wb = LkTwoStepCreate(arena, str_path_wb, g_map_wbc_str, WBC_Count, WBC_XX, UNIFMT_A);
-  o_ud->ts_gb = LkTwoStepCreate(arena, str_path_gb, g_map_gbc_str, GBC_Count, GBC_XX, UNIFMT_A);
-  o_ud->ts_gc = LkTwoStepCreate(arena, str_path_gc, g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
-  o_ud->ts_eaw = LkTwoStepCreate(arena, str_path_eaw, g_map_eaw_str, EAW_Count, EAW_Na, UNIFMT_A);
-  o_ud->ts_incb = LkTwoStepCreate(arena, str_path_incb, g_map_incb_str, INCB_Count, INCB_None, UNIFMT_C);
-  o_ud->ts_ep = LkTwoStepCreate(arena, str_path_ep, NULL, 2, 0 /* Extended_Pictographic */, UNIFMT_D);
-  o_ud->ts_bidi = LkTwoStepCreate(arena, str_path_bidi, g_map_bidic_str, BIDIC_Count, BIDIC_L, UNIFMT_A);
+  o_ud->ts_lb = LkTwoStepCreate(arena, spec_info->str_path_lb, g_map_lbc_str, LBC_Count, LBC_XX, UNIFMT_A);
+  o_ud->ts_wb = LkTwoStepCreate(arena, spec_info->str_path_wb, g_map_wbc_str, WBC_Count, WBC_XX, UNIFMT_A);
+  o_ud->ts_gb = LkTwoStepCreate(arena, spec_info->str_path_gb, g_map_gbc_str, GBC_Count, GBC_XX, UNIFMT_A);
+  o_ud->ts_gc = LkTwoStepCreate(arena, spec_info->str_path_gc, g_map_gc_str, GC_Count, GC_Cc, UNIFMT_B);
+  o_ud->ts_eaw = LkTwoStepCreate(arena, spec_info->str_path_eaw, g_map_eaw_str, EAW_Count, EAW_Na, UNIFMT_A);
+  o_ud->ts_incb = LkTwoStepCreate(arena, spec_info->str_path_incb, g_map_incb_str, INCB_Count, INCB_None, UNIFMT_C);
+  o_ud->ts_ep = LkTwoStepCreate(arena, spec_info->str_path_ep, NULL, 2, 0 /* Extended_Pictographic */, UNIFMT_D);
+  o_ud->ts_bidi = LkTwoStepCreate(arena, spec_info->str_path_bidi, g_map_bidic_str, BIDIC_Count, BIDIC_L, UNIFMT_A);
 
   // TODO: Clean this up, not suitable for TwoStep table, but could be something else (hashmap?)
   
   FILE* fp = NULL;
-  errno_t err = fopen_s(&fp, str_path_bidipb, "r");
+  errno_t err = fopen_s(&fp, spec_info->str_path_bidipb, "r");
   char buf[S_MAX_LINE];
   char buf_cls[S_MAX_LINE];
   if (err)
