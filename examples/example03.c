@@ -23,7 +23,7 @@ int main() {
   i32 len_cstr = 0;
   read_file("pg3160.txt", &cstr, &len_cstr);
   int font_size = 72;
-  LkArena* arena = lkArenaCreate(Megabytes(128));
+  LkArena* arena = lkArenaCreateFixed(Megabytes(128));
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(
       arena,

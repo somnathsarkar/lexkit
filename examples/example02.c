@@ -22,7 +22,7 @@ int main() {
   read_file("example_bidi.txt", &cstr, &len_cstr);
   int font_size = 72;
 
-  LkArena* arena = lkArenaCreate(Megabytes(64));
+  LkArena* arena = lkArenaCreateFixed(Megabytes(64));
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(
       arena,

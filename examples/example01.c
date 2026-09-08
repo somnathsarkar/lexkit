@@ -30,7 +30,7 @@ int main() {
   int len_cstr = strnlen(cstr, 10000);
   int font_size = 72;
 
-  LkArena* arena = lkArenaCreate(Megabytes(64));
+  LkArena* arena = lkArenaCreateFixed(Megabytes(64));
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(
       arena,

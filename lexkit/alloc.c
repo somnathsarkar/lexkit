@@ -3,28 +3,70 @@
 #include <stdlib.h>
 #include <string.h>
 
-LkArena* lkArenaCreate(u64 sz)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
+#define LK_ARENA_RESERVE (1024llu * 1024llu * 1024llu * 16)
+#define LK_ARENA_CHUNK (1024llu * 1024llu)
+
+LkArena* lkArenaCreate()
 {
   LkArena* arena = (LkArena*)calloc(1, sizeof(LkArena));
   arena->pos = 0;
-  arena->size = sz;
-  arena->data = (u8*)calloc(sz, sizeof(u8));
+  arena->reserved = LK_ARENA_RESERVE;
+  arena->committed = 0;
+  arena->data = VirtualAlloc(NULL, LK_ARENA_RESERVE, MEM_RESERVE, PAGE_NOACCESS);
   arena->alt = (LkArena*)calloc(1, sizeof(LkArena));
   arena->alt->pos = 0;
-  arena->alt->size = sz;
-  arena->alt->data = (u8*)calloc(sz, sizeof(u8));
+  arena->alt->reserved = LK_ARENA_RESERVE;
+  arena->alt->committed = 0;
+  arena->alt->data = VirtualAlloc(NULL, LK_ARENA_RESERVE, MEM_RESERVE, PAGE_NOACCESS);
   arena->alt->alt = arena;
   return arena;
+}
+
+LkArena* lkArenaCreateFixed(u64 sz)
+{
+  LkArena* arena = (LkArena*)calloc(1, sizeof(LkArena));
+  arena->pos = 0;
+  arena->reserved = sz;
+  arena->committed = sz;
+  arena->data = VirtualAlloc(NULL, sz, MEM_COMMIT, PAGE_READWRITE);
+  arena->alt = (LkArena*)calloc(1, sizeof(LkArena));
+  arena->alt->pos = 0;
+  arena->alt->reserved = sz;
+  arena->alt->committed = sz;
+  arena->alt->data = VirtualAlloc(NULL, sz, MEM_COMMIT, PAGE_READWRITE);
+  arena->alt->alt = arena;
+  return arena;
+}
+
+void lkArenaDestroy(LkArena* arena)
+{
+  VirtualFree(arena->alt->data, 0, MEM_RELEASE);
+  free(arena->alt);
+  VirtualFree(arena->data, 0, MEM_RELEASE);
+}
+
+static void ArenaCommit(LkArena* arena, u64 pos_required)
+{
+  u64 pos_target = LK_ARENA_CHUNK * ((pos_required + (LK_ARENA_CHUNK - 1)) / LK_ARENA_CHUNK);
+  VirtualAlloc((char*)(arena->data) + arena->pos, pos_target - arena->pos, MEM_COMMIT, PAGE_READWRITE);
+  arena->committed = pos_target;
 }
 
 void* lkArenaPush(LkArena* arena, u64 sz, u64 aln)
 {
   assert(aln > 0);
   aln = (aln > 0) ? aln : 1;
-  arena->pos = ((arena->pos + aln - 1) / aln) * aln;
-  char* result = ((char*)arena->data) + arena->pos;
-  arena->pos += sz;
-  assert(arena->pos <= arena->size);
+  u64 pos_aln = ((arena->pos + aln - 1) / aln) * aln;
+  u64 pos_target = pos_aln + sz;
+  if (pos_target > arena->committed)
+    ArenaCommit(arena, pos_target);
+  char* result = ((char*)arena->data) + pos_aln;
+  arena->pos = pos_target;
+  assert(arena->pos <= arena->reserved);
   return result;
 }
 
@@ -32,10 +74,13 @@ void* lkArenaPushArray(LkArena* arena, u64 sz, u64 aln, u64 count)
 {
   assert(aln > 0);
   aln = (aln > 0) ? aln : 1;
-  arena->pos = ((arena->pos + aln - 1) / aln) * aln;
-  char* result = ((char*)arena->data) + arena->pos;
-  arena->pos += sz * count;
-  assert(arena->pos <= arena->size);
+  u64 pos_aln = ((arena->pos + aln - 1) / aln) * aln;
+  u64 pos_target = pos_aln + sz * count;
+  if (pos_target > arena->committed)
+    ArenaCommit(arena, pos_target);
+  char* result = ((char*)arena->data) + pos_aln;
+  arena->pos = pos_target;
+  assert(arena->pos <= arena->reserved);
   return result;
 }
 

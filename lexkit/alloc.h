@@ -6,14 +6,17 @@
 struct LkArena
 {
   void *data;
-  u64 size;
+  u64 reserved;
+  u64 committed;
   u64 pos;
   struct LkArena* alt;
 };
 
 typedef struct LkArena LkArena;
 
-LkArena* lkArenaCreate(u64 sz);
+LkArena* lkArenaCreate(void);
+LkArena* lkArenaCreateFixed(u64 sz);
+void lkArenaDestroy(LkArena* arena);
 void* lkArenaPush(LkArena* arena, u64 sz, u64 aln);
 void* lkArenaPushArray(LkArena* arena, u64 sz, u64 aln, u64 count);
 u64 lkArenaGetPos(LkArena* arena);
