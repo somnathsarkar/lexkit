@@ -10,12 +10,16 @@ BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
   BidiUnit ret = {0};
   ret.bidic = BIDIC_L;
   ret.bidic = LkTwoStepLookup(ud->ts_bidi, codepoint);
-  for (i32 i = 0; i < ud->bidipb_count; i++)
+  if (ret.bidic == BIDIC_ON)
   {
-    if (codepoint == ud->bidipb_key[i])
+    for (i32 i = 0; i < ud->bidipb_count; i++)
     {
-      ret.bidipb = ud->bidipb_value[i];
-      ret.bidipbt = ud->bidipbt[i];
+      if (codepoint == ud->bidipb_key[i])
+      {
+        ret.bidipb = ud->bidipb_value[i];
+        ret.bidipbt = ud->bidipbt[i];
+        break;
+      }
     }
   }
   if (ret.bidic == BIDIC_NSM)
