@@ -7,6 +7,13 @@
 #include <lexkit/bidi.h>
 #include <lexkit/sizes.h>
 
+struct LkContext
+{
+  LkUnicodeData* ud;
+};
+
+void lkCreateContext(LkUnicodeData* ud, LkContext* o_ctx);
+
 typedef struct
 {
   int codepoint;
@@ -92,8 +99,8 @@ void lkShapeText(
     LkLevelRun* lruns,
     LkGlyph*** o_glyphs);
 LkLine* lkSplitLines(
+    LkContext* ctx,
     LkArena* arena,
-    LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -103,8 +110,8 @@ LkLine* lkSplitLines(
     i32 h,
     i32* o_line_count);
 void lkLayoutText(
+      LkContext* ctx,
       LkArena* arena,
-      LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
       i32* levels,

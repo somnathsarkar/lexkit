@@ -38,6 +38,9 @@ int main() {
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(arena, &spec_info_u16, &ud);
 
+  LkContext ctx;
+  lkCreateContext(&ud, &ctx);
+
   LkFont font;
   lkCreateFont(arena, "C:/Windows/Fonts/Arial.ttf", font_size, &font);
 #if MEASURE_PERF
@@ -56,17 +59,17 @@ int main() {
   int64_t ts_precomputebidiunits = timestamp();
   printf("lkCreateText: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
 #endif
-  lkComputeBidiUnits(arena, text.codepoints, text.codepoint_count, &ud, &units);
+  lkComputeBidiUnits(&ctx, arena, text.codepoints, text.codepoint_count, &units);
 #if MEASURE_PERF
   int64_t ts_presplitparagraphs = timestamp();
   printf("lkComputeBidiUnits: %g ms\n", ((timestamp() - ts_precomputebidiunits) * 1000.0)/timestamp_res());
 #endif
-  lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, units, &ud, &para_count, &paragraphs);
+  lkSplitParagraphs(&ctx, arena, text.codepoints, text.codepoint_count, units, &para_count, &paragraphs);
 #if MEASURE_PERF
   int64_t ts_presplitbidiruns = timestamp();
   printf("lkSplitParagraphs: %g ms\n", ((timestamp() - ts_presplitparagraphs) * 1000.0)/timestamp_res());
 #endif
-  lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, units, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  lkSplitBidiRuns(&ctx, arena, text.codepoints, text.codepoint_count, units, para_count, paragraphs, &levels, &level_run_count, &level_runs);
 #if MEASURE_PERF
   int64_t ts_preshapetext = timestamp();
   printf("lkSplitBidiRuns: %g ms\n", ((timestamp() - ts_presplitbidiruns) * 1000.0)/timestamp_res());
@@ -179,11 +182,11 @@ int main() {
 #if MEASURE_PERF
       int64_t ts_frame_start = timestamp();
 #endif
-      LkLine* lines = lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+      LkLine* lines = lkSplitLines(&ctx, arena, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
 #if MEASURE_PERF
       int64_t ts_split_lines = timestamp();
 #endif
-      lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
+      lkLayoutText(&ctx, arena, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
 #if MEASURE_PERF
       int64_t ts_layout_text = timestamp();
 #endif

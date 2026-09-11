@@ -45,6 +45,9 @@ int main() {
   LkUnicodeData ud = {0};
   bool ud_success = lkTryLoadUnicodeDataFromSpec(arena, &spec_info_u16, &ud);
 
+  LkContext ctx;
+  lkCreateContext(&ud, &ctx);
+
   LkFont font;
   lkCreateFont(arena, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
 #if MEASURE_PERF
@@ -59,9 +62,9 @@ int main() {
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
   BidiUnit* units = NULL;
-  lkComputeBidiUnits(arena, text.codepoints, text.codepoint_count, &ud, &units);
-  lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, units, &ud, &para_count, &paragraphs);
-  lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, units, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  lkComputeBidiUnits(&ctx, arena, text.codepoints, text.codepoint_count, &units);
+  lkSplitParagraphs(&ctx, arena, text.codepoints, text.codepoint_count, units, &para_count, &paragraphs);
+  lkSplitBidiRuns(&ctx, arena, text.codepoints, text.codepoint_count, units, para_count, paragraphs, &levels, &level_run_count, &level_runs);
   lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
 #if MEASURE_PERF
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
@@ -165,8 +168,8 @@ int main() {
       u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
       i32 line_count = -1;
-      LkLine* lines = lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
-      lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
+      LkLine* lines = lkSplitLines(&ctx, arena, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+      lkLayoutText(&ctx, arena, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
       lkArenaRestore(arena, frame_pos);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);

@@ -11,6 +11,12 @@
 
 #define GRAPHEME_BREAK_COUNT 16
 
+void lkCreateContext(LkUnicodeData* ud, LkContext* o_ctx)
+{
+  assert(o_ctx != NULL && ud != NULL);
+  o_ctx->ud = ud;
+}
+
 void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *o_font)
 {
   hb_blob_t *blob = hb_blob_create_from_file(cstr_path);
@@ -159,8 +165,8 @@ struct LkLineTmp
 typedef struct LkLineTmp LkLineTmp;
 
 LkLine* lkSplitLines(
+    LkContext* ctx,
     LkArena* arena,
-    LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -184,7 +190,7 @@ LkLine* lkSplitLines(
   static bool first_render = false;
   int64_t ts = timestamp();
 #endif
-  BreakerResult* breaks = lkGetBreaks(scratch, text, ud);
+  BreakerResult* breaks = lkGetBreaks(scratch, text, ctx->ud);
 #if MEASURE_PERF
   if (!first_render)
   {
@@ -595,8 +601,8 @@ void PerformL2Reversals(
 }
 
 void lkLayoutText(
+      LkContext* ctx,
       LkArena* arena,
-      LkUnicodeData* ud,
       LkFont* font,
       LkText* text,
       i32* levels,
