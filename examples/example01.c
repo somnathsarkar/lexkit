@@ -7,6 +7,7 @@
 
 #include <lexkit/lexkit.h>
 #include <lexkit/perf.h>
+#include <lexkit/unicode_data_16.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -31,22 +32,9 @@ int main() {
   int font_size = 72;
 
   LkArena* arena = lkArenaCreateFixed(Megabytes(64));
-  LkUnicodeSpecInfo spec_info_u16 = {0};
-  spec_info_u16.str_path_lb = "C:/Code/lexkit/lexkit/LineBreakProperty.txt";
-  spec_info_u16.str_path_wb = "C:/Code/lexkit/lexkit/WordBreakProperty.txt";
-  spec_info_u16.str_path_gb = "C:/Code/lexkit/lexkit/GraphemeBreakProperty.txt";
-  spec_info_u16.str_path_gc = "C:/Code/lexkit/lexkit/UnicodeData.txt";
-  spec_info_u16.str_path_eaw = "C:/Code/lexkit/lexkit/EastAsianWidth.txt";
-  spec_info_u16.str_path_incb = "C:/Code/lexkit/lexkit/DerivedCoreProperties.txt";
-  spec_info_u16.str_path_ep = "C:/Code/lexkit/lexkit/emoji-data.txt";
-  spec_info_u16.str_path_bidi = "C:/Code/lexkit/lexkit/DerivedBidiClass.txt";
-  spec_info_u16.str_path_bidipb = "C:/Code/lexkit/lexkit/BidiBrackets.txt";
-
-  LkUnicodeData ud = {0};
-  bool ud_success = lkTryLoadUnicodeDataFromSpec(arena, &spec_info_u16, &ud);
 
   LkContext ctx;
-  lkCreateContext(&ud, &ctx);
+  lkCreateContext(&g_lk_unicode_data, &ctx);
 
   LkFont font;
   lkCreateFont(arena, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);

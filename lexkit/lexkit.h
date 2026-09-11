@@ -9,10 +9,10 @@
 
 struct LkContext
 {
-  LkUnicodeData* ud;
+  const LkUnicodeData* ud;
 };
 
-void lkCreateContext(LkUnicodeData* ud, LkContext* o_ctx);
+void lkCreateContext(const LkUnicodeData* ud, LkContext* o_ctx);
 
 typedef struct
 {

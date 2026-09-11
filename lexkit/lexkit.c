@@ -11,7 +11,7 @@
 
 #define GRAPHEME_BREAK_COUNT 16
 
-void lkCreateContext(LkUnicodeData* ud, LkContext* o_ctx)
+void lkCreateContext(const LkUnicodeData* ud, LkContext* o_ctx)
 {
   assert(o_ctx != NULL && ud != NULL);
   o_ctx->ud = ud;

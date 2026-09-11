@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
+BidiUnit BidiUnitCreate(const u32 codepoint, const LkUnicodeData* ud)
 {
   BidiUnit ret = {0};
   ret.bidic = BIDIC_L;

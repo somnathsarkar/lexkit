@@ -34,7 +34,7 @@ typedef struct
   BIDIC bidic_orig;
 } BidiUnit;
 
-BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud);
+BidiUnit BidiUnitCreate(const u32 codepoint, const LkUnicodeData* ud);
 
 extern const i32 g_bidi_max_depth; // Fixed by Unicode, guaranteed to never change
 

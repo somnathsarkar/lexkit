@@ -334,7 +334,7 @@ static Glyph GetGlyphAtIndex(const u32* codepoints, i32 len_codepoints, i32 idx,
 
 #ifdef __AVX2__
 
-static void GetGlyphAtIndexAvx2(const u32* codepoints, i32 len_codepoints, i32 idx, LkUnicodeData* ud, Glyph* o_glyphs)
+static void GetGlyphAtIndexAvx2(const u32* codepoints, i32 len_codepoints, i32 idx, const LkUnicodeData* ud, Glyph* o_glyphs)
 {
   assert (idx >= 0 || idx < len_codepoints);
 
@@ -405,7 +405,7 @@ static void GetGlyphAtIndexAvx2(const u32* codepoints, i32 len_codepoints, i32 i
 
 #endif
 
-void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, LkUnicodeData* ud, Breaker* o_brk)
+void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, const LkUnicodeData* ud, Breaker* o_brk)
 {
   o_brk->codepoints = codepoints;
   o_brk->len_codepoints = len_codepoints;
@@ -414,7 +414,7 @@ void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, Lk
 #ifdef __AVX2__
   for (int i = 0; i < len_codepoints; i += 4)
   {
-    GetGlyphAtIndexAvx2(codepoints, len_codepoints, i, ud, o_brk->glyphs);
+    GetGlyphAtIndexAvx2(codepoints, len_codepoints, i,  ud, o_brk->glyphs);
   }
 #else
   for (int i = 0; i < len_codepoints; i++)
@@ -424,7 +424,7 @@ void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, Lk
 #endif
 }
 
-static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
+static void BreakerGetNextGlyphLineBreak(Breaker* brk, const LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
 {
   if (*io_next)
     return;
@@ -442,7 +442,7 @@ static void BreakerGetNextGlyphLineBreak(Breaker* brk, LkUnicodeData* ud, bool* 
   }
 }
 
-static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
+static LBRK BreakerComputeLbrk(Breaker* brk, const LkUnicodeData* ud)
 {
   // LB3
 
@@ -907,7 +907,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, LkUnicodeData* ud)
   return LBRK_OPT;
 }
 
-static void BreakerGetNextGlyphWordBreak(Breaker* brk, LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
+static void BreakerGetNextGlyphWordBreak(Breaker* brk, const LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
 {
   if (*io_next)
     return;
@@ -936,7 +936,7 @@ static bool IsAHLetterX(WBCX wbcx)
   return (wbcx == WBCX_ALetter || wbcx == WBCX_Hebrew_Letter);
 }
 
-WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
+WBRK BreakerComputeWbrk(Breaker* brk, const LkUnicodeData* ud)
 {
   // WB2
 
@@ -1148,7 +1148,7 @@ WBRK BreakerComputeWbrk(Breaker* brk, LkUnicodeData* ud)
   return WBRK_BRK;
 }
 
-GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
+GBRK BreakerComputeGbrk(Breaker* brk, const LkUnicodeData* ud)
 {
   // GB2
 
@@ -1267,7 +1267,7 @@ GBRK BreakerComputeGbrk(Breaker* brk, LkUnicodeData* ud)
   return GBRK_BRK;
 }
 
-BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
+BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
 {
   BreakerResult res = {0};
   
@@ -1594,7 +1594,7 @@ BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud)
   return res;
 }
 
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud)
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, const LkUnicodeData* ud)
 {
   u64 arena_pos = lkArenaGetPos(arena->alt);
   BreakerResult* breaks = APushArray(arena, BreakerResult, text->codepoint_count);
