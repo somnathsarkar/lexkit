@@ -152,19 +152,21 @@ void lkDestroyFont(LkContext* ctx, LkFont* font)
   font->font = NULL;
 }
 
-void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
+void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
 {
   hb_buffer_t *buf;
   buf = hb_buffer_create();
   hb_buffer_add_utf8(buf, cstr, -1, 0, -1);
   hb_buffer_guess_segment_properties(buf);
 
+  o_text->arena = lkArenaCreateFrom(ctx->alloc);
   o_text->codepoint_count = 0;
   hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->codepoint_count);
 
-  o_text->codepoints = APushArray(arena, u32, o_text->codepoint_count);
+  o_text->codepoints = APushArray(o_text->arena, u32, o_text->codepoint_count);
   for (int i = 0; i < o_text->codepoint_count; i++)
     o_text->codepoints[i] = glyph_info[i].codepoint;
+  hb_buffer_destroy(buf);
 }
 
 float MaxF32(float a, float b)

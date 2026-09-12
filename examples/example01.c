@@ -42,7 +42,7 @@ int main() {
   int64_t ts_setup = timestamp();
 #endif
   LkText text;
-  lkCreateText(arena, &font, cstr, len_cstr, &text);
+  lkCreateText(&ctx, &font, cstr, len_cstr, &text);
   i32 level_run_count = -1;
   LkLevelRun* level_runs = NULL;
   i32 para_count = -1;

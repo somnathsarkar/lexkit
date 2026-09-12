@@ -61,6 +61,7 @@ struct LkText
 {
   u32 codepoint_count;
   u32* codepoints;
+  LkArena* arena;
 };
 
 typedef struct LkText LkText;
@@ -92,7 +93,7 @@ typedef struct LkLine LkLine;
 
 void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont* o_font);
 void lkDestroyFont(LkContext* ctx, LkFont* font);
-void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
+void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
 void lkShapeText(
     LkArena* arena,
     LkFont* font,
