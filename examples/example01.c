@@ -34,10 +34,10 @@ int main() {
   LkArena* arena = lkArenaCreateFixed(Megabytes(64));
 
   LkContext ctx;
-  lkCreateContext(&g_lk_unicode_data, &ctx);
+  lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
 
   LkFont font;
-  lkCreateFont(arena, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
+  lkCreateFont(&ctx, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
 #if MEASURE_PERF
   int64_t ts_setup = timestamp();
 #endif
@@ -181,6 +181,9 @@ int main() {
       ReleaseDC(hwnd, hdc);
     }
   }
+
+  lkDestroyFont(&ctx, &font);
+  
   return 0;
 }
 

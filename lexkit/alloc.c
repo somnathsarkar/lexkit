@@ -10,6 +10,64 @@
 #define LK_ARENA_RESERVE (1024llu * 1024llu * 1024llu * 16)
 #define LK_ARENA_CHUNK (1024llu * 1024llu)
 
+static void* lkAllocatorDefaultReserve(void* user, u64 size)
+{
+  return VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_NOACCESS);
+}
+
+static bool lkAllocatorDefaultCommit(void* user, void* ptr, u64 size)
+{
+  return VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != NULL;
+}
+
+static void lkAllocatorDefaultRelease(void* user, void* ptr, u64 size)
+{
+  VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+static LkAllocator g_lk_allocator_default = {
+  lkAllocatorDefaultReserve,
+  lkAllocatorDefaultCommit,
+  lkAllocatorDefaultRelease,
+  NULL,
+};
+
+LkAllocator* lkAllocatorDefault(void)
+{
+  return &g_lk_allocator_default;
+}
+
+void* lkAllocatorAlloc(LkAllocator* alloc, u64 sz, u64 aln)
+{
+  if (alloc == NULL)
+    alloc = lkAllocatorDefault();
+  assert(aln > 0 && (aln & (aln - 1)) == 0);
+  void* block = alloc->reserve(alloc->user, sz);
+  if (block == NULL)
+    return NULL;
+  assert(((u64)block % aln) == 0);
+  if (!alloc->commit(alloc->user, block, sz))
+  {
+    alloc->release(alloc->user, block, sz);
+    return NULL;
+  }
+  return block;
+}
+
+void* lkAllocatorAllocArray(LkAllocator* alloc, u64 sz, u64 aln, u64 count)
+{
+  return lkAllocatorAlloc(alloc, sz * count, aln);
+}
+
+void lkAllocatorFree(LkAllocator* alloc, void* ptr, u64 sz)
+{
+  if (alloc == NULL)
+    alloc = lkAllocatorDefault();
+  if (ptr == NULL)
+    return;
+  alloc->release(alloc->user, ptr, sz);
+}
+
 LkArena* lkArenaCreate()
 {
   LkArena* arena = (LkArena*)calloc(1, sizeof(LkArena));

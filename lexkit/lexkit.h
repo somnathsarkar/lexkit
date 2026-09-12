@@ -10,9 +10,10 @@
 struct LkContext
 {
   const LkUnicodeData* ud;
+  LkAllocator* alloc;
 };
 
-void lkCreateContext(const LkUnicodeData* ud, LkContext* o_ctx);
+void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx);
 
 typedef struct
 {
@@ -89,7 +90,8 @@ struct LkLine
 
 typedef struct LkLine LkLine;
 
-void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont* o_font);
+void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont* o_font);
+void lkDestroyFont(LkContext* ctx, LkFont* font);
 void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
 void lkShapeText(
     LkArena* arena,

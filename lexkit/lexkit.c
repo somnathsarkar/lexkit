@@ -11,13 +11,14 @@
 
 #define GRAPHEME_BREAK_COUNT 16
 
-void lkCreateContext(const LkUnicodeData* ud, LkContext* o_ctx)
+void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx)
 {
   assert(o_ctx != NULL && ud != NULL);
   o_ctx->ud = ud;
+  o_ctx->alloc = (alloc) ? alloc : lkAllocatorDefault();
 }
 
-void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *o_font)
+void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *o_font)
 {
   hb_blob_t *blob = hb_blob_create_from_file(cstr_path);
   hb_face_t *face = hb_face_create(blob, 0);
@@ -33,8 +34,9 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
   int cursor_x = 2;
   int cursor_y = 2;
   int cursor_y_max = 0;
-  o_font->buffer = APushArray(arena, u8, 4096 * 4096);
-  o_font->glyphs = APushArray(arena, LkFontAtlasGlyph, 2000);
+  o_font->glyphs = AAllocArray(ctx->alloc, LkFontAtlasGlyph, 2000);
+  o_font->buffer = AAllocArray(ctx->alloc, u8, 4096llu * 4096llu);
+  assert(o_font->glyphs != NULL && o_font->buffer != NULL);
 
   for(int i = 0; i < 2000; i++)
   {
@@ -83,14 +85,13 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
     cursor_x += 2;
   }
 
+  hb_buffer_t *hyphen_pair_buf = hb_buffer_create();
   for (int i = 0; i < 10000; i++)
   {
     // Hyphen advances
 
     const char* hyphen_pair_cstr = "-";
-    hb_buffer_t *hyphen_buf;
-    hb_buffer_t *hyphen_pair_buf;
-    hyphen_pair_buf = hb_buffer_create();
+    hb_buffer_reset(hyphen_pair_buf);
     hb_codepoint_t codepoint_i = i;
     hb_buffer_add_codepoints(hyphen_pair_buf, &codepoint_i, 1, 0, 1);
     hb_buffer_add_utf8(hyphen_pair_buf, hyphen_pair_cstr, -1, 0, -1);
@@ -109,6 +110,7 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
       o_font->glyphs[glyph_index_i].canuse_hyphen = true;
     }
   }
+  hb_buffer_destroy(hyphen_pair_buf);
 
   const char* hyphen_cstr = "-";
   hb_buffer_t *hyphen_buf;
@@ -132,6 +134,22 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
   o_font->ascent = ftface->size->metrics.ascender;
   o_font->descent = ftface->size->metrics.descender;
   o_font->line_gap = ftface->size->metrics.height;
+
+  hb_buffer_destroy(hyphen_buf);
+  hb_blob_destroy(blob);
+  hb_face_destroy(face);
+  FT_Done_Face(ftface);
+  FT_Done_FreeType(library);
+}
+
+void lkDestroyFont(LkContext* ctx, LkFont* font)
+{
+  AFree(ctx->alloc, font->glyphs, LkFontAtlasGlyph, 2000);
+  font->glyphs = NULL;
+  AFree(ctx->alloc, font->buffer, u8, 4096llu * 4096llu);
+  font->buffer = NULL;
+  hb_font_destroy((hb_font_t*)(font->font));
+  font->font = NULL;
 }
 
 void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
