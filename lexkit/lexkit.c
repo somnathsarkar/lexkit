@@ -167,6 +167,15 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
   for (int i = 0; i < o_text->codepoint_count; i++)
     o_text->codepoints[i] = glyph_info[i].codepoint;
   hb_buffer_destroy(buf);
+
+#if MEASURE_PERF
+  int64_t ts = timestamp();
+#endif
+  o_text->units = NULL;
+  lkComputeBidiUnits(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, &o_text->units);
+#if MEASURE_PERF
+  printf("lkComputeBidiUnits: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+#endif
 }
 
 void lkDestroyText(LkContext* ctx, LkText* text)
@@ -174,6 +183,7 @@ void lkDestroyText(LkContext* ctx, LkText* text)
   lkArenaDestroy(text->arena);
   text->arena = NULL;
   text->codepoints = NULL;
+  text->units = NULL;
   text->codepoint_count = 0;
 }
 

@@ -61,6 +61,7 @@ struct LkText
 {
   u32 codepoint_count;
   u32* codepoints;
+  BidiUnit* units;
   LkArena* arena;
 };
 

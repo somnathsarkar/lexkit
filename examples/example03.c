@@ -42,22 +42,16 @@ int main() {
   LkParagraph* paragraphs = NULL;
   LkGlyph** glyphs = NULL;
   i32* levels = NULL;
-  BidiUnit* units = NULL;
-#if MEASURE_PERF
-  int64_t ts_precomputebidiunits = timestamp();
-  printf("lkCreateText: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
-#endif
-  lkComputeBidiUnits(&ctx, arena, text.codepoints, text.codepoint_count, &units);
 #if MEASURE_PERF
   int64_t ts_presplitparagraphs = timestamp();
-  printf("lkComputeBidiUnits: %g ms\n", ((timestamp() - ts_precomputebidiunits) * 1000.0)/timestamp_res());
+  printf("lkCreateText: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
 #endif
-  lkSplitParagraphs(&ctx, arena, text.codepoints, text.codepoint_count, units, &para_count, &paragraphs);
+  lkSplitParagraphs(&ctx, arena, text.codepoints, text.codepoint_count, text.units, &para_count, &paragraphs);
 #if MEASURE_PERF
   int64_t ts_presplitbidiruns = timestamp();
   printf("lkSplitParagraphs: %g ms\n", ((timestamp() - ts_presplitparagraphs) * 1000.0)/timestamp_res());
 #endif
-  lkSplitBidiRuns(&ctx, arena, text.codepoints, text.codepoint_count, units, para_count, paragraphs, &levels, &level_run_count, &level_runs);
+  lkSplitBidiRuns(&ctx, arena, text.codepoints, text.codepoint_count, text.units, para_count, paragraphs, &levels, &level_run_count, &level_runs);
 #if MEASURE_PERF
   int64_t ts_preshapetext = timestamp();
   printf("lkSplitBidiRuns: %g ms\n", ((timestamp() - ts_presplitbidiruns) * 1000.0)/timestamp_res());
@@ -174,7 +168,7 @@ int main() {
 #if MEASURE_PERF
       int64_t ts_split_lines = timestamp();
 #endif
-      lkLayoutText(&ctx, arena, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
+      lkLayoutText(&ctx, arena, &font, &text, levels, glyphs, line_count, lines, text.units, w, h, 10240, vd, &vdc);
 #if MEASURE_PERF
       int64_t ts_layout_text = timestamp();
 #endif
