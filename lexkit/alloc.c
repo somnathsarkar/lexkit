@@ -70,16 +70,27 @@ void lkAllocatorFree(LkAllocator* alloc, void* ptr, u64 sz)
 
 LkArena* lkArenaCreate()
 {
+  return lkArenaCreateFrom(NULL);
+}
+
+LkArena* lkArenaCreateFrom(LkAllocator* alloc)
+{
+  if (alloc == NULL)
+    alloc = lkAllocatorDefault();
   LkArena* arena = (LkArena*)calloc(1, sizeof(LkArena));
   arena->pos = 0;
   arena->reserved = LK_ARENA_RESERVE;
   arena->committed = 0;
-  arena->data = VirtualAlloc(NULL, LK_ARENA_RESERVE, MEM_RESERVE, PAGE_NOACCESS);
+  arena->alloc = alloc;
+  arena->data = alloc->reserve(alloc->user, LK_ARENA_RESERVE);
+  assert(arena->data != NULL);
   arena->alt = (LkArena*)calloc(1, sizeof(LkArena));
   arena->alt->pos = 0;
   arena->alt->reserved = LK_ARENA_RESERVE;
   arena->alt->committed = 0;
-  arena->alt->data = VirtualAlloc(NULL, LK_ARENA_RESERVE, MEM_RESERVE, PAGE_NOACCESS);
+  arena->alt->alloc = alloc;
+  arena->alt->data = alloc->reserve(alloc->user, LK_ARENA_RESERVE);
+  assert(arena->alt->data != NULL);
   arena->alt->alt = arena;
   return arena;
 }
@@ -90,11 +101,13 @@ LkArena* lkArenaCreateFixed(u64 sz)
   arena->pos = 0;
   arena->reserved = sz;
   arena->committed = sz;
+  arena->alloc = lkAllocatorDefault();
   arena->data = VirtualAlloc(NULL, sz, MEM_COMMIT, PAGE_READWRITE);
   arena->alt = (LkArena*)calloc(1, sizeof(LkArena));
   arena->alt->pos = 0;
   arena->alt->reserved = sz;
   arena->alt->committed = sz;
+  arena->alt->alloc = lkAllocatorDefault();
   arena->alt->data = VirtualAlloc(NULL, sz, MEM_COMMIT, PAGE_READWRITE);
   arena->alt->alt = arena;
   return arena;
@@ -102,15 +115,17 @@ LkArena* lkArenaCreateFixed(u64 sz)
 
 void lkArenaDestroy(LkArena* arena)
 {
-  VirtualFree(arena->alt->data, 0, MEM_RELEASE);
+  arena->alt->alloc->release(arena->alt->alloc->user, arena->alt->data, arena->alt->reserved);
   free(arena->alt);
-  VirtualFree(arena->data, 0, MEM_RELEASE);
+  arena->alloc->release(arena->alloc->user, arena->data, arena->reserved);
+  free(arena);
 }
 
 static void ArenaCommit(LkArena* arena, u64 pos_required)
 {
   u64 pos_target = LK_ARENA_CHUNK * ((pos_required + (LK_ARENA_CHUNK - 1)) / LK_ARENA_CHUNK);
-  VirtualAlloc((char*)(arena->data) + arena->pos, pos_target - arena->pos, MEM_COMMIT, PAGE_READWRITE);
+  bool ok = arena->alloc->commit(arena->alloc->user, (char*)(arena->data) + arena->committed, pos_target - arena->committed);
+  assert(ok);
   arena->committed = pos_target;
 }
 

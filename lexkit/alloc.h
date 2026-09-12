@@ -25,11 +25,13 @@ struct LkArena
   u64 committed;
   u64 pos;
   struct LkArena* alt;
+  LkAllocator* alloc;
 };
 
 typedef struct LkArena LkArena;
 
 LkArena* lkArenaCreate(void);
+LkArena* lkArenaCreateFrom(LkAllocator* alloc);
 LkArena* lkArenaCreateFixed(u64 sz);
 void lkArenaDestroy(LkArena* arena);
 void* lkArenaPush(LkArena* arena, u64 sz, u64 aln);
