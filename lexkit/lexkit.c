@@ -169,6 +169,14 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
   hb_buffer_destroy(buf);
 }
 
+void lkDestroyText(LkContext* ctx, LkText* text)
+{
+  lkArenaDestroy(text->arena);
+  text->arena = NULL;
+  text->codepoints = NULL;
+  text->codepoint_count = 0;
+}
+
 float MaxF32(float a, float b)
 {
   return (a < b) ? b : a;
