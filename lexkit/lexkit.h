@@ -11,9 +11,11 @@ struct LkContext
 {
   const LkUnicodeData* ud;
   LkAllocator* alloc;
+  LkArena* scratch;
 };
 
 void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx);
+void lkDestroyContext(LkContext* ctx);
 
 typedef struct
 {
@@ -102,6 +104,15 @@ void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont* 
 void lkDestroyFont(LkContext* ctx, LkFont* font);
 void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
 void lkDestroyText(LkContext* ctx, LkText* text);
+void lkLayoutText(
+    LkContext* ctx,
+    LkFont* font,
+    LkText* text,
+    i32 w,
+    i32 h,
+    u64 max_vd,
+    LkVertexDescriptor_Text* o_vd,
+    i32* o_vd_count);
 void lkShapeText(
     LkArena* arena,
     LkFont* font,
@@ -120,19 +131,4 @@ LkLine* lkSplitLines(
     i32 w,
     i32 h,
     i32* o_line_count);
-void lkLayoutText(
-      LkContext* ctx,
-      LkArena* arena,
-      LkFont* font,
-      LkText* text,
-      i32* levels,
-      LkGlyph** glyphs,
-      i32 line_count,
-      LkLine* lines,
-      const BidiUnit* units,
-      i32 w,
-      i32 h,
-      u64 max_vd,
-      LkVertexDescriptor_Text* o_vd,
-      i32* o_vd_count);
 #endif

@@ -16,6 +16,13 @@ void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_c
   assert(o_ctx != NULL && ud != NULL);
   o_ctx->ud = ud;
   o_ctx->alloc = (alloc) ? alloc : lkAllocatorDefault();
+  o_ctx->scratch = lkArenaCreateFrom(o_ctx->alloc);
+}
+
+void lkDestroyContext(LkContext* ctx)
+{
+  lkArenaDestroy(ctx->scratch);
+  ctx->scratch = NULL;
 }
 
 void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *o_font)
@@ -667,21 +674,28 @@ void PerformL2Reversals(
 
 void lkLayoutText(
       LkContext* ctx,
-      LkArena* arena,
       LkFont* font,
       LkText* text,
-      i32* levels,
-      LkGlyph** glyphs,
-      i32 line_count,
-      LkLine* lines,
-      const BidiUnit* units,
       i32 w,
       i32 h,
       u64 max_vd,
       LkVertexDescriptor_Text* o_vd,
       i32* o_vd_count)
 {
-  LkArena* scratch = arena->alt;
+  u64 pos = lkArenaGetPos(ctx->scratch);
+  i32 line_count = -1;
+#if MEASURE_PERF
+  static bool first_layout = false;
+  int64_t ts_start = timestamp();
+#endif
+  LkLine* lines = lkSplitLines(ctx, ctx->scratch, font, text, text->glyphs, text->para_count, text->paragraphs, w, h, &line_count);
+#if MEASURE_PERF
+  int64_t ts_split = timestamp();
+#endif
+  i32* levels = text->levels;
+  LkGlyph** glyphs = text->glyphs;
+  const BidiUnit* units = text->units;
+  LkArena* scratch = ctx->scratch->alt;
   i32 vdc = 0;
   float cursor_x = 0.0;
   float cursor_y = 0.0;
@@ -784,4 +798,14 @@ end:
     lkArenaRestore(scratch, scratch_line_pos);
   }
   *o_vd_count = vdc;
+#if MEASURE_PERF
+  if (!first_layout)
+  {
+    printf("lkSplitLines: %g ms\nlkLayoutText: %g ms\n",
+            (ts_split - ts_start) * 1000.0 / timestamp_res(),
+            (timestamp() - ts_split) * 1000.0 / timestamp_res());
+    first_layout = true;
+  }
+#endif
+  lkArenaRestore(ctx->scratch, pos);
 }

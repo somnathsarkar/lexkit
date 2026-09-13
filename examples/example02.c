@@ -23,8 +23,6 @@ int main() {
   read_file("example_bidi.txt", &cstr, &len_cstr);
   int font_size = 72;
 
-  LkArena* arena = lkArenaCreateFixed(Megabytes(64));
-
   LkContext ctx;
   lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
 
@@ -134,12 +132,8 @@ int main() {
       glClearColor((float) 0x21 / 0xFF, (float) 0x21 / 0xFF, (float) 0x21 / 0xFF, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT);
 
-      u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
-      i32 line_count = -1;
-      LkLine* lines = lkSplitLines(&ctx, arena, &font, &text, text.glyphs, text.para_count, text.paragraphs, w, h, &line_count);
-      lkLayoutText(&ctx, arena, &font, &text, text.levels, text.glyphs, line_count, lines, text.units, w, h, 10240, vd, &vdc);
-      lkArenaRestore(arena, frame_pos);
+      lkLayoutText(&ctx, &font, &text, w, h, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(

@@ -24,7 +24,6 @@ int main() {
   i32 len_cstr = 0;
   read_file("pg3160.txt", &cstr, &len_cstr);
   int font_size = 72;
-  LkArena* arena = lkArenaCreateFixed(Megabytes(128));
 
   LkContext ctx;
   lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
@@ -106,7 +105,6 @@ int main() {
 
   int64_t ts = timestamp_win64();
   int64_t ts_acc = 0;
-  bool first_render = false;
 
   int quit = 0;
   while (!quit)
@@ -136,30 +134,8 @@ int main() {
       glClearColor((float) 0x21 / 0xFF, (float) 0x21 / 0xFF, (float) 0x21 / 0xFF, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT);
 
-      u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
-      i32 line_count = -1;
-#if MEASURE_PERF
-      int64_t ts_frame_start = timestamp();
-#endif
-      LkLine* lines = lkSplitLines(&ctx, arena, &font, &text, text.glyphs, text.para_count, text.paragraphs, w, h, &line_count);
-#if MEASURE_PERF
-      int64_t ts_split_lines = timestamp();
-#endif
-      lkLayoutText(&ctx, arena, &font, &text, text.levels, text.glyphs, line_count, lines, text.units, w, h, 10240, vd, &vdc);
-#if MEASURE_PERF
-      int64_t ts_layout_text = timestamp();
-#endif
-      lkArenaRestore(arena, frame_pos);
-#if MEASURE_PERF
-      if (!first_render) 
-      {
-        printf("lkSplitLines: %g ms\nlkLayoutText: %g ms\n",
-                (ts_split_lines - ts_frame_start) * 1000.0 / timestamp_res(),
-                (ts_layout_text - ts_split_lines) * 1000.0 / timestamp_res());
-        first_render = true;
-      }
-#endif
+      lkLayoutText(&ctx, &font, &text, w, h, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(
