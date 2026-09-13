@@ -41,11 +41,13 @@ void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *
   int cursor_x = 2;
   int cursor_y = 2;
   int cursor_y_max = 0;
-  o_font->glyphs = AAllocArray(ctx->alloc, LkFontAtlasGlyph, 2000);
+  o_font->glyph_count = (i32)ftface->num_glyphs;
+  o_font->glyphs = AAllocArray(ctx->alloc, LkFontAtlasGlyph, o_font->glyph_count);
   o_font->buffer = AAllocArray(ctx->alloc, u8, 4096llu * 4096llu);
   assert(o_font->glyphs != NULL && o_font->buffer != NULL);
 
-  for(int i = 0; i < 2000; i++)
+  i32 raster_count = (o_font->glyph_count < 2000) ? o_font->glyph_count : 2000;
+  for(int i = 0; i < raster_count; i++)
   {
     o_font->glyphs[i].codepoint = i;
     FT_Load_Glyph(ftface, i, FT_LOAD_DEFAULT);
@@ -108,7 +110,7 @@ void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *
     hb_shape(font, hyphen_pair_buf, NULL, 0);
     hyphen_pair_glyph_info = hb_buffer_get_glyph_infos(hyphen_pair_buf, &hyphen_pair_glyph_count);
     hb_codepoint_t glyph_index_i = hyphen_pair_glyph_info[0].codepoint;
-    if (glyph_index_i >= 0 && glyph_index_i < 2000)
+    if (glyph_index_i >= 0 && glyph_index_i < raster_count)
     {
       hb_glyph_position_t* hyphen_pair_glyph_pos = hb_buffer_get_glyph_positions(hyphen_pair_buf, &hyphen_pair_glyph_count);
       o_font->glyphs[glyph_index_i].x_advance_hyphen = hyphen_pair_glyph_pos[0].x_advance;
@@ -151,8 +153,9 @@ void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *
 
 void lkDestroyFont(LkContext* ctx, LkFont* font)
 {
-  AFree(ctx->alloc, font->glyphs, LkFontAtlasGlyph, 2000);
+  AFree(ctx->alloc, font->glyphs, LkFontAtlasGlyph, font->glyph_count);
   font->glyphs = NULL;
+  font->glyph_count = 0;
   AFree(ctx->alloc, font->buffer, u8, 4096llu * 4096llu);
   font->buffer = NULL;
   hb_font_destroy((hb_font_t*)(font->font));

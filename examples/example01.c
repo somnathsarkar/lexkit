@@ -165,7 +165,9 @@ int main() {
     }
   }
 
+  lkDestroyText(&ctx, &text);
   lkDestroyFont(&ctx, &font);
+  lkDestroyContext(&ctx);
   
   return 0;
 }

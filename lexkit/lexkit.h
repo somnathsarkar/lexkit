@@ -49,6 +49,7 @@ typedef struct
 {
   u8 *buffer;
   LkFontAtlasGlyph *glyphs;
+  i32 glyph_count;
   i32 hyphen_glyph_i;
   i32 hyphen_advance_x;
   i32 hyphen_offset_x;
