@@ -1,3 +1,4 @@
+#include <lexkit/lexkit.h>
 #include <lexkit/alloc.h>
 #include <lexkit/bidi.h>
 #include <lexkit/break.h>
@@ -5,17 +6,21 @@
 #include <stdlib.h>
 #include <assert.h>
 
-BidiUnit BidiUnitCreate(const u32 codepoint, LkUnicodeData* ud)
+BidiUnit BidiUnitCreate(const u32 codepoint, const LkUnicodeData* ud)
 {
   BidiUnit ret = {0};
   ret.bidic = BIDIC_L;
   ret.bidic = LkTwoStepLookup(ud->ts_bidi, codepoint);
-  for (i32 i = 0; i < ud->bidipb_count; i++)
+  if (ret.bidic == BIDIC_ON)
   {
-    if (codepoint == ud->bidipb_key[i])
+    for (i32 i = 0; i < ud->bidipb_count; i++)
     {
-      ret.bidipb = ud->bidipb_value[i];
-      ret.bidipbt = ud->bidipbt[i];
+      if (codepoint == ud->bidipb_key[i])
+      {
+        ret.bidipb = ud->bidipb_value[i];
+        ret.bidipbt = ud->bidipbt[i];
+        break;
+      }
     }
   }
   if (ret.bidic == BIDIC_NSM)
@@ -1133,25 +1138,25 @@ static void lkSplitBidiRunsParagraph(
 }
 
 void lkComputeBidiUnits(
+    LkContext* ctx,
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
-    LkUnicodeData* ud,
     BidiUnit** o_units)
 {
   assert(o_units != NULL && *o_units == NULL);
 
   *o_units = APushArray(arena, BidiUnit, len_codepoints);
   for (i32 i = 0; i < len_codepoints; i++)
-    (*o_units)[i] = BidiUnitCreate(codepoints[i], ud);
+    (*o_units)[i] = BidiUnitCreate(codepoints[i], ctx->ud);
 }
 
 void lkSplitParagraphs(
+    LkContext* ctx,
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     const BidiUnit* units,
-    LkUnicodeData* ud,
     i32* o_paragraph_count,
     LkParagraph** o_paragraphs)
 {
@@ -1245,11 +1250,11 @@ struct LkLevelRunNode
 typedef struct LkLevelRunNode LkLevelRunNode;
 
 void lkSplitBidiRuns(
+    LkContext* ctx,
     LkArena* arena,
     const u32* codepoints,
     i32 len_codepoints,
     BidiUnit* units,
-    LkUnicodeData* ud,
     i32 paragraph_count,
     LkParagraph* paragraphs,
     i32** o_levels,

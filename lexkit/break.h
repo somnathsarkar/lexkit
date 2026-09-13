@@ -360,6 +360,19 @@ typedef struct
 
 typedef struct
 {
+  char* str_path_lb;
+  char* str_path_wb;
+  char* str_path_gb;
+  char* str_path_gc;
+  char* str_path_eaw;
+  char* str_path_incb;
+  char* str_path_ep;
+  char* str_path_bidi;
+  char* str_path_bidipb;
+} LkUnicodeSpecInfo;
+
+typedef struct
+{
   LkTwoStep* ts_lb;
   LkTwoStep* ts_wb;
   LkTwoStep* ts_gb;
@@ -377,15 +390,7 @@ typedef struct
 
 bool lkTryLoadUnicodeDataFromSpec(
     LkArena* arena,
-    const char* str_path_lb,
-    const char* str_path_wb,
-    const char* str_path_gb,
-    const char* str_path_gc,
-    const char* str_path_eaw,
-    const char* str_path_incb,
-    const char* str_path_ep,
-    const char* str_path_bidi,
-    const char* str_path_bidipb,
+    LkUnicodeSpecInfo* spec_info,
     LkUnicodeData* o_ud);
 
 typedef struct
@@ -445,8 +450,8 @@ extern const char* g_map_bidic_str[];
 
 struct LkText;
 
-void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, LkUnicodeData* ud, Breaker* o_brk);
-BreakerResult BreakerAdvance(Breaker* brk, LkUnicodeData* ud);
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, LkUnicodeData* ud);
+void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, const LkUnicodeData* ud, Breaker* o_brk);
+BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud);
+BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, const LkUnicodeData* ud);
 
 #endif

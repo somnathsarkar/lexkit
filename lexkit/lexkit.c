@@ -11,7 +11,21 @@
 
 #define GRAPHEME_BREAK_COUNT 16
 
-void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *o_font)
+void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx)
+{
+  assert(o_ctx != NULL && ud != NULL);
+  o_ctx->ud = ud;
+  o_ctx->alloc = (alloc) ? alloc : lkAllocatorDefault();
+  o_ctx->scratch = lkArenaCreateFrom(o_ctx->alloc);
+}
+
+void lkDestroyContext(LkContext* ctx)
+{
+  lkArenaDestroy(ctx->scratch);
+  ctx->scratch = NULL;
+}
+
+void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *o_font)
 {
   hb_blob_t *blob = hb_blob_create_from_file(cstr_path);
   hb_face_t *face = hb_face_create(blob, 0);
@@ -27,10 +41,13 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
   int cursor_x = 2;
   int cursor_y = 2;
   int cursor_y_max = 0;
-  o_font->buffer = APushArray(arena, u8, 4096 * 4096);
-  o_font->glyphs = APushArray(arena, LkFontAtlasGlyph, 2000);
+  o_font->glyph_count = (i32)ftface->num_glyphs;
+  o_font->glyphs = AAllocArray(ctx->alloc, LkFontAtlasGlyph, o_font->glyph_count);
+  o_font->buffer = AAllocArray(ctx->alloc, u8, 4096llu * 4096llu);
+  assert(o_font->glyphs != NULL && o_font->buffer != NULL);
 
-  for(int i = 0; i < 2000; i++)
+  i32 raster_count = (o_font->glyph_count < 2000) ? o_font->glyph_count : 2000;
+  for(int i = 0; i < raster_count; i++)
   {
     o_font->glyphs[i].codepoint = i;
     FT_Load_Glyph(ftface, i, FT_LOAD_DEFAULT);
@@ -77,14 +94,13 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
     cursor_x += 2;
   }
 
+  hb_buffer_t *hyphen_pair_buf = hb_buffer_create();
   for (int i = 0; i < 10000; i++)
   {
     // Hyphen advances
 
     const char* hyphen_pair_cstr = "-";
-    hb_buffer_t *hyphen_buf;
-    hb_buffer_t *hyphen_pair_buf;
-    hyphen_pair_buf = hb_buffer_create();
+    hb_buffer_reset(hyphen_pair_buf);
     hb_codepoint_t codepoint_i = i;
     hb_buffer_add_codepoints(hyphen_pair_buf, &codepoint_i, 1, 0, 1);
     hb_buffer_add_utf8(hyphen_pair_buf, hyphen_pair_cstr, -1, 0, -1);
@@ -94,7 +110,7 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
     hb_shape(font, hyphen_pair_buf, NULL, 0);
     hyphen_pair_glyph_info = hb_buffer_get_glyph_infos(hyphen_pair_buf, &hyphen_pair_glyph_count);
     hb_codepoint_t glyph_index_i = hyphen_pair_glyph_info[0].codepoint;
-    if (glyph_index_i >= 0 && glyph_index_i < 2000)
+    if (glyph_index_i >= 0 && glyph_index_i < raster_count)
     {
       hb_glyph_position_t* hyphen_pair_glyph_pos = hb_buffer_get_glyph_positions(hyphen_pair_buf, &hyphen_pair_glyph_count);
       o_font->glyphs[glyph_index_i].x_advance_hyphen = hyphen_pair_glyph_pos[0].x_advance;
@@ -103,6 +119,7 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
       o_font->glyphs[glyph_index_i].canuse_hyphen = true;
     }
   }
+  hb_buffer_destroy(hyphen_pair_buf);
 
   const char* hyphen_cstr = "-";
   hb_buffer_t *hyphen_buf;
@@ -126,21 +143,85 @@ void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont *
   o_font->ascent = ftface->size->metrics.ascender;
   o_font->descent = ftface->size->metrics.descender;
   o_font->line_gap = ftface->size->metrics.height;
+
+  hb_buffer_destroy(hyphen_buf);
+  hb_blob_destroy(blob);
+  hb_face_destroy(face);
+  FT_Done_Face(ftface);
+  FT_Done_FreeType(library);
 }
 
-void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
+void lkDestroyFont(LkContext* ctx, LkFont* font)
+{
+  AFree(ctx->alloc, font->glyphs, LkFontAtlasGlyph, font->glyph_count);
+  font->glyphs = NULL;
+  font->glyph_count = 0;
+  AFree(ctx->alloc, font->buffer, u8, 4096llu * 4096llu);
+  font->buffer = NULL;
+  hb_font_destroy((hb_font_t*)(font->font));
+  font->font = NULL;
+}
+
+void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
 {
   hb_buffer_t *buf;
   buf = hb_buffer_create();
   hb_buffer_add_utf8(buf, cstr, -1, 0, -1);
   hb_buffer_guess_segment_properties(buf);
 
+  o_text->arena = lkArenaCreateFrom(ctx->alloc);
   o_text->codepoint_count = 0;
   hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->codepoint_count);
 
-  o_text->codepoints = APushArray(arena, u32, o_text->codepoint_count);
+  o_text->codepoints = APushArray(o_text->arena, u32, o_text->codepoint_count);
   for (int i = 0; i < o_text->codepoint_count; i++)
     o_text->codepoints[i] = glyph_info[i].codepoint;
+  hb_buffer_destroy(buf);
+
+#if MEASURE_PERF
+  int64_t ts = timestamp();
+#endif
+  o_text->units = NULL;
+  lkComputeBidiUnits(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, &o_text->units);
+#if MEASURE_PERF
+  printf("lkComputeBidiUnits: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->para_count = -1;
+  o_text->paragraphs = NULL;
+  lkSplitParagraphs(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, o_text->units, &o_text->para_count, &o_text->paragraphs);
+#if MEASURE_PERF
+  printf("lkSplitParagraphs: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->levels = NULL;
+  o_text->level_run_count = -1;
+  o_text->level_runs = NULL;
+  lkSplitBidiRuns(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, o_text->units, o_text->para_count, o_text->paragraphs, &o_text->levels, &o_text->level_run_count, &o_text->level_runs);
+#if MEASURE_PERF
+  printf("lkSplitBidiRuns: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->glyphs = NULL;
+  lkShapeText(o_text->arena, font, o_text, o_text->level_run_count, o_text->level_runs, &o_text->glyphs);
+#if MEASURE_PERF
+  printf("lkShapeText: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+#endif
+}
+
+void lkDestroyText(LkContext* ctx, LkText* text)
+{
+  lkArenaDestroy(text->arena);
+  text->arena = NULL;
+  text->codepoints = NULL;
+  text->units = NULL;
+  text->paragraphs = NULL;
+  text->levels = NULL;
+  text->level_runs = NULL;
+  text->glyphs = NULL;
+  text->codepoint_count = 0;
+  text->para_count = 0;
+  text->level_run_count = 0;
 }
 
 float MaxF32(float a, float b)
@@ -159,8 +240,8 @@ struct LkLineTmp
 typedef struct LkLineTmp LkLineTmp;
 
 LkLine* lkSplitLines(
+    LkContext* ctx,
     LkArena* arena,
-    LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -184,7 +265,7 @@ LkLine* lkSplitLines(
   static bool first_render = false;
   int64_t ts = timestamp();
 #endif
-  BreakerResult* breaks = lkGetBreaks(scratch, text, ud);
+  BreakerResult* breaks = lkGetBreaks(scratch, text, ctx->ud);
 #if MEASURE_PERF
   if (!first_render)
   {
@@ -486,23 +567,138 @@ static bool IsL1Class(BIDIC bidic)
           bidic == BIDIC_PDI);
 }
 
+typedef struct
+{
+  bool is_leaf;
+  i32 level;
+  i32 start;
+  i32 sz;
+  i32 first_child;
+  i32 last_child;
+  i32 next_sibling;
+  i32 prev_sibling;
+} L2ReversalNode;
+
+i32 BuildL2ReversalTree(
+      i32* level_line,
+      i32 line_codepoint_count,
+      i32 level,
+      i32 level_start,
+      i32* o_first_child,
+      i32* o_node_count,
+      L2ReversalNode* o_tree)
+{
+  int node_sz = 0;
+  int focus = level_start;
+  i32 prev_sibling = -1;
+  while (focus < line_codepoint_count && level_line[focus] >= level)
+  {
+    if (level_line[focus] == level)
+    {
+      int node_start = focus;
+      while (focus < line_codepoint_count && level_line[focus] == level)
+      {
+        focus++;
+      }
+      if (*o_first_child == -1)
+      {
+        *o_first_child = *o_node_count;
+      }
+      if (prev_sibling != -1)
+      {
+        o_tree[prev_sibling].next_sibling = *o_node_count;
+      }
+      o_tree[(*o_node_count)] = (L2ReversalNode){ true, level, node_start, focus - node_start, -1, -1, -1, prev_sibling };
+      prev_sibling = *o_node_count;
+      (*o_node_count)++;
+      node_sz += focus - node_start;
+    }
+    else
+    {
+      i32 first_child = -1;
+      i32 new_focus = BuildL2ReversalTree(level_line, line_codepoint_count, level + 1, focus, &first_child, o_node_count, o_tree);
+      assert(first_child < *o_node_count);
+      i32 last_child = (*o_node_count) - 1;
+      if (*o_first_child == -1)
+      {
+        *o_first_child = *o_node_count;
+      }
+      if (prev_sibling != -1)
+      {
+        o_tree[prev_sibling].next_sibling = *o_node_count;
+      }
+      o_tree[(*o_node_count)] = (L2ReversalNode){ false, level + 1, focus, new_focus - focus, first_child, last_child, -1, prev_sibling };
+      prev_sibling = *o_node_count;
+      (*o_node_count)++;
+      node_sz += new_focus - focus;
+      focus = new_focus;
+    }
+  }
+  return focus;
+}
+
+void PerformL2Reversals(
+  LkLine line,
+  L2ReversalNode* tree,
+  i32 focus,
+  i32 focus_start,
+  i32* o_codepoint_orders)
+{
+  L2ReversalNode fnode = tree[focus];
+  i32 pos = focus_start;
+  bool is_reversed = (tree[focus].level & 1) ? true : false;
+  i32 child_iter = is_reversed ? fnode.last_child : fnode.first_child;
+  while (child_iter != -1)
+  {
+    i32 child_start = tree[child_iter].start;
+    i32 child_sz = tree[child_iter].sz;
+    if (tree[child_iter].is_leaf)
+    {
+      if (is_reversed)
+      {
+        for (int i = 0; i < child_sz; i++)
+          o_codepoint_orders[pos + i] = line.start_i + child_start + child_sz - 1 - i;
+      }
+      else
+      {
+        for (int i = 0; i < child_sz; i++)
+          o_codepoint_orders[pos + i] = line.start_i + child_start + i;
+      }
+      pos += child_sz;
+    }
+    else
+    {
+      PerformL2Reversals(line, tree, child_iter, pos, o_codepoint_orders);
+      pos += child_sz;
+    }
+    child_iter = is_reversed ? tree[child_iter].prev_sibling : tree[child_iter].next_sibling;
+  }
+}
+
 void lkLayoutText(
-      LkArena* arena,
-      LkUnicodeData* ud,
+      LkContext* ctx,
       LkFont* font,
       LkText* text,
-      i32* levels,
-      LkGlyph** glyphs,
-      i32 line_count,
-      LkLine* lines,
-      const BidiUnit* units,
       i32 w,
       i32 h,
       u64 max_vd,
       LkVertexDescriptor_Text* o_vd,
       i32* o_vd_count)
 {
-  LkArena* scratch = arena->alt;
+  u64 pos = lkArenaGetPos(ctx->scratch);
+  i32 line_count = -1;
+#if MEASURE_PERF
+  static bool first_layout = false;
+  int64_t ts_start = timestamp();
+#endif
+  LkLine* lines = lkSplitLines(ctx, ctx->scratch, font, text, text->glyphs, text->para_count, text->paragraphs, w, h, &line_count);
+#if MEASURE_PERF
+  int64_t ts_split = timestamp();
+#endif
+  i32* levels = text->levels;
+  LkGlyph** glyphs = text->glyphs;
+  const BidiUnit* units = text->units;
+  LkArena* scratch = ctx->scratch->alt;
   i32 vdc = 0;
   float cursor_x = 0.0;
   float cursor_y = 0.0;
@@ -541,48 +737,12 @@ void lkLayoutText(
     // L2
 
     i32* codepoint_orders = APushArray(scratch, i32, line_codepoint_count);
-    for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
-    {
-      codepoint_orders[codepoint_i - lines[line_i].start_i] = codepoint_i;
-    }
-    for (i32 level_i = g_bidi_max_depth + 2; level_i > 0; level_i--)
-    {
-      i32 focus = 0;
-      while (focus < line_codepoint_count)
-      {
-        if (level_line[focus] < level_i)
-        {
-          focus++;
-          continue;
-        }
-        assert(level_line[focus] == level_i);
-        i32 block_start_i = focus;
-        i32 block_end_i = focus;
-        while (focus < line_codepoint_count && level_line[focus] == level_i)
-        {
-          block_end_i = focus;
-          focus++;
-        }
-        i32 rfocus = block_start_i;
-		
-		// Reverse block of contiguous glyphs at the same level
-		
-        while (block_end_i + block_start_i - rfocus > rfocus)
-        {
-          // Swap
-
-          i32 a = codepoint_orders[rfocus];
-          i32 b = codepoint_orders[block_end_i + block_start_i - rfocus];
-          codepoint_orders[rfocus] = b;
-          codepoint_orders[block_end_i + block_start_i - rfocus] = a;
-          rfocus++;
-        }
-        for (i32 block_i = block_start_i; block_i <= block_end_i; block_i++)
-        {
-          level_line[block_i] = level_i - 1;
-        }
-      }
-    }
+    L2ReversalNode* l2_nodes = APushArray(scratch, L2ReversalNode, line_codepoint_count);
+    i32 l2_node_count = 1;
+    l2_nodes[0] = (L2ReversalNode) { false, 0, 0, line_codepoint_count, -1, -1, -1, -1 };
+    BuildL2ReversalTree(level_line, line_codepoint_count, 0, 0, &l2_nodes[0].first_child, &l2_node_count, l2_nodes);
+    l2_nodes[0].last_child = l2_node_count - 1;
+    PerformL2Reversals(lines[line_i], l2_nodes, 0, 0, codepoint_orders);
 
     // NOTE: Not implementing L3, L4. Are they required or implicitly handled by HarfBuzz??
 
@@ -641,4 +801,14 @@ end:
     lkArenaRestore(scratch, scratch_line_pos);
   }
   *o_vd_count = vdc;
+#if MEASURE_PERF
+  if (!first_layout)
+  {
+    printf("lkSplitLines: %g ms\nlkLayoutText: %g ms\n",
+            (ts_split - ts_start) * 1000.0 / timestamp_res(),
+            (timestamp() - ts_split) * 1000.0 / timestamp_res());
+    first_layout = true;
+  }
+#endif
+  lkArenaRestore(ctx->scratch, pos);
 }

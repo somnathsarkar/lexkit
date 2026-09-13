@@ -7,6 +7,16 @@
 #include <lexkit/bidi.h>
 #include <lexkit/sizes.h>
 
+struct LkContext
+{
+  const LkUnicodeData* ud;
+  LkAllocator* alloc;
+  LkArena* scratch;
+};
+
+void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx);
+void lkDestroyContext(LkContext* ctx);
+
 typedef struct
 {
   int codepoint;
@@ -39,6 +49,7 @@ typedef struct
 {
   u8 *buffer;
   LkFontAtlasGlyph *glyphs;
+  i32 glyph_count;
   i32 hyphen_glyph_i;
   i32 hyphen_advance_x;
   i32 hyphen_offset_x;
@@ -48,14 +59,6 @@ typedef struct
   float descent;
   float line_gap;
 } LkFont;
-
-struct LkText
-{
-  u32 codepoint_count;
-  u32* codepoints;
-};
-
-typedef struct LkText LkText;
 
 struct LkGlyph
 {
@@ -71,6 +74,22 @@ struct LkGlyph
 
 typedef struct LkGlyph LkGlyph;
 
+struct LkText
+{
+  u32 codepoint_count;
+  u32* codepoints;
+  BidiUnit* units;
+  i32 para_count;
+  LkParagraph* paragraphs;
+  i32* levels;
+  i32 level_run_count;
+  LkLevelRun* level_runs;
+  LkGlyph** glyphs;
+  LkArena* arena;
+};
+
+typedef struct LkText LkText;
+
 struct LkLine
 {
   i32 start_i;
@@ -82,8 +101,19 @@ struct LkLine
 
 typedef struct LkLine LkLine;
 
-void lkCreateFont(LkArena* arena, const char* cstr_path, i32 font_size, LkFont* o_font);
-void lkCreateText(LkArena* arena, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
+void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont* o_font);
+void lkDestroyFont(LkContext* ctx, LkFont* font);
+void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text);
+void lkDestroyText(LkContext* ctx, LkText* text);
+void lkLayoutText(
+    LkContext* ctx,
+    LkFont* font,
+    LkText* text,
+    i32 w,
+    i32 h,
+    u64 max_vd,
+    LkVertexDescriptor_Text* o_vd,
+    i32* o_vd_count);
 void lkShapeText(
     LkArena* arena,
     LkFont* font,
@@ -92,8 +122,8 @@ void lkShapeText(
     LkLevelRun* lruns,
     LkGlyph*** o_glyphs);
 LkLine* lkSplitLines(
+    LkContext* ctx,
     LkArena* arena,
-    LkUnicodeData* ud,
     LkFont* font,
     LkText* text,
     LkGlyph** glyphs,
@@ -102,19 +132,4 @@ LkLine* lkSplitLines(
     i32 w,
     i32 h,
     i32* o_line_count);
-void lkLayoutText(
-      LkArena* arena,
-      LkUnicodeData* ud,
-      LkFont* font,
-      LkText* text,
-      i32* levels,
-      LkGlyph** glyphs,
-      i32 line_count,
-      LkLine* lines,
-      const BidiUnit* units,
-      i32 w,
-      i32 h,
-      u64 max_vd,
-      LkVertexDescriptor_Text* o_vd,
-      i32* o_vd_count);
 #endif

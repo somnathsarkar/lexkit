@@ -7,6 +7,7 @@
 
 #include <lexkit/lexkit.h>
 #include <lexkit/perf.h>
+#include <lexkit/unicode_data_16.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -30,39 +31,16 @@ int main() {
   int len_cstr = strnlen(cstr, 10000);
   int font_size = 72;
 
-  LkArena* arena = lkArenaCreate(Megabytes(64));
-  LkUnicodeData ud = {0};
-  bool ud_success = lkTryLoadUnicodeDataFromSpec(
-      arena,
-      "C:/Code/lexkit/lexkit/LineBreakProperty.txt",
-      "C:/Code/lexkit/lexkit/WordBreakProperty.txt",
-      "C:/Code/lexkit/lexkit/GraphemeBreakProperty.txt",
-      "C:/Code/lexkit/lexkit/UnicodeData.txt",
-      "C:/Code/lexkit/lexkit/EastAsianWidth.txt",
-      "C:/Code/lexkit/lexkit/DerivedCoreProperties.txt",
-      "C:/Code/lexkit/lexkit/emoji-data.txt",
-      "C:/Code/lexkit/lexkit/DerivedBidiClass.txt",
-      "C:/Code/lexkit/lexkit/BidiBrackets.txt",
-      &ud);
+  LkContext ctx;
+  lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
 
   LkFont font;
-  lkCreateFont(arena, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
+  lkCreateFont(&ctx, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
 #if MEASURE_PERF
   int64_t ts_setup = timestamp();
 #endif
   LkText text;
-  lkCreateText(arena, &font, cstr, len_cstr, &text);
-  i32 level_run_count = -1;
-  LkLevelRun* level_runs = NULL;
-  i32 para_count = -1;
-  LkParagraph* paragraphs = NULL;
-  LkGlyph** glyphs = NULL;
-  i32* levels = NULL;
-  BidiUnit* units = NULL;
-  lkComputeBidiUnits(arena, text.codepoints, text.codepoint_count, &ud, &units);
-  lkSplitParagraphs(arena, text.codepoints, text.codepoint_count, units, &ud, &para_count, &paragraphs);
-  lkSplitBidiRuns(arena, text.codepoints, text.codepoint_count, units, &ud, para_count, paragraphs, &levels, &level_run_count, &level_runs);
-  lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
+  lkCreateText(&ctx, &font, cstr, len_cstr, &text);
 #if MEASURE_PERF
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
 #endif
@@ -162,12 +140,8 @@ int main() {
       glClearColor((float) 0x21 / 0xFF, (float) 0x21 / 0xFF, (float) 0x21 / 0xFF, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT);
 
-      u64 frame_pos = lkArenaGetPos(arena);
       i32 vdc = 0;
-      i32 line_count = -1;
-      LkLine* lines = lkSplitLines(arena, &ud, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
-      lkLayoutText(arena, &ud, &font, &text, levels, glyphs, line_count, lines, units, w, h, 10240, vd, &vdc);
-      lkArenaRestore(arena, frame_pos);
+      lkLayoutText(&ctx, &font, &text, w, h, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(
@@ -190,6 +164,11 @@ int main() {
       ReleaseDC(hwnd, hdc);
     }
   }
+
+  lkDestroyText(&ctx, &text);
+  lkDestroyFont(&ctx, &font);
+  lkDestroyContext(&ctx);
+  
   return 0;
 }
 
