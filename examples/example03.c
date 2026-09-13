@@ -36,29 +36,7 @@ int main() {
 #endif
   LkText text;
   lkCreateText(&ctx, &font, cstr, len_cstr, &text);
-  i32 level_run_count = -1;
-  LkLevelRun* level_runs = NULL;
-  i32 para_count = -1;
-  LkParagraph* paragraphs = NULL;
-  LkGlyph** glyphs = NULL;
-  i32* levels = NULL;
 #if MEASURE_PERF
-  int64_t ts_presplitparagraphs = timestamp();
-  printf("lkCreateText: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
-#endif
-  lkSplitParagraphs(&ctx, arena, text.codepoints, text.codepoint_count, text.units, &para_count, &paragraphs);
-#if MEASURE_PERF
-  int64_t ts_presplitbidiruns = timestamp();
-  printf("lkSplitParagraphs: %g ms\n", ((timestamp() - ts_presplitparagraphs) * 1000.0)/timestamp_res());
-#endif
-  lkSplitBidiRuns(&ctx, arena, text.codepoints, text.codepoint_count, text.units, para_count, paragraphs, &levels, &level_run_count, &level_runs);
-#if MEASURE_PERF
-  int64_t ts_preshapetext = timestamp();
-  printf("lkSplitBidiRuns: %g ms\n", ((timestamp() - ts_presplitbidiruns) * 1000.0)/timestamp_res());
-#endif
-  lkShapeText(arena, &font, &text, level_run_count, level_runs, &glyphs);
-#if MEASURE_PERF
-  printf("lkShapeText: %g ms\n", ((timestamp() - ts_preshapetext) * 1000.0)/timestamp_res());
   printf("Setup Time: %g ms\n", ((timestamp() - ts_setup) * 1000.0)/timestamp_res());
 #endif
 
@@ -164,11 +142,11 @@ int main() {
 #if MEASURE_PERF
       int64_t ts_frame_start = timestamp();
 #endif
-      LkLine* lines = lkSplitLines(&ctx, arena, &font, &text, glyphs, para_count, paragraphs, w, h, &line_count);
+      LkLine* lines = lkSplitLines(&ctx, arena, &font, &text, text.glyphs, text.para_count, text.paragraphs, w, h, &line_count);
 #if MEASURE_PERF
       int64_t ts_split_lines = timestamp();
 #endif
-      lkLayoutText(&ctx, arena, &font, &text, levels, glyphs, line_count, lines, text.units, w, h, 10240, vd, &vdc);
+      lkLayoutText(&ctx, arena, &font, &text, text.levels, text.glyphs, line_count, lines, text.units, w, h, 10240, vd, &vdc);
 #if MEASURE_PERF
       int64_t ts_layout_text = timestamp();
 #endif

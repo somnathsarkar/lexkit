@@ -57,16 +57,6 @@ typedef struct
   float line_gap;
 } LkFont;
 
-struct LkText
-{
-  u32 codepoint_count;
-  u32* codepoints;
-  BidiUnit* units;
-  LkArena* arena;
-};
-
-typedef struct LkText LkText;
-
 struct LkGlyph
 {
   u32 glyph_index;
@@ -80,6 +70,22 @@ struct LkGlyph
 };
 
 typedef struct LkGlyph LkGlyph;
+
+struct LkText
+{
+  u32 codepoint_count;
+  u32* codepoints;
+  BidiUnit* units;
+  i32 para_count;
+  LkParagraph* paragraphs;
+  i32* levels;
+  i32 level_run_count;
+  LkLevelRun* level_runs;
+  LkGlyph** glyphs;
+  LkArena* arena;
+};
+
+typedef struct LkText LkText;
 
 struct LkLine
 {

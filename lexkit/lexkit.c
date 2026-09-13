@@ -175,6 +175,27 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
   lkComputeBidiUnits(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, &o_text->units);
 #if MEASURE_PERF
   printf("lkComputeBidiUnits: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->para_count = -1;
+  o_text->paragraphs = NULL;
+  lkSplitParagraphs(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, o_text->units, &o_text->para_count, &o_text->paragraphs);
+#if MEASURE_PERF
+  printf("lkSplitParagraphs: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->levels = NULL;
+  o_text->level_run_count = -1;
+  o_text->level_runs = NULL;
+  lkSplitBidiRuns(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, o_text->units, o_text->para_count, o_text->paragraphs, &o_text->levels, &o_text->level_run_count, &o_text->level_runs);
+#if MEASURE_PERF
+  printf("lkSplitBidiRuns: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->glyphs = NULL;
+  lkShapeText(o_text->arena, font, o_text, o_text->level_run_count, o_text->level_runs, &o_text->glyphs);
+#if MEASURE_PERF
+  printf("lkShapeText: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
 #endif
 }
 
@@ -184,7 +205,13 @@ void lkDestroyText(LkContext* ctx, LkText* text)
   text->arena = NULL;
   text->codepoints = NULL;
   text->units = NULL;
+  text->paragraphs = NULL;
+  text->levels = NULL;
+  text->level_runs = NULL;
+  text->glyphs = NULL;
   text->codepoint_count = 0;
+  text->para_count = 0;
+  text->level_run_count = 0;
 }
 
 float MaxF32(float a, float b)
