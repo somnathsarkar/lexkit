@@ -16,6 +16,10 @@
 LkVertexDescriptor_Text vd[10240] = {0};
 
 int main() {
+  char font_path[MAX_PATH];
+  UINT font_path_n = GetWindowsDirectoryA(font_path, MAX_PATH);
+  snprintf(font_path + font_path_n, MAX_PATH - font_path_n, "\\Fonts\\arial.ttf");
+
   const char* cstr = \
     "Call Me Ishmael. Some years ago—never mind how long precisely—having "
     "little or no money in my purse, and nothing particular to interest me on shore, "
@@ -35,7 +39,7 @@ int main() {
   lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
 
   LkFont font;
-  lkCreateFont(&ctx, "C:/Dev/Fonts/Hack/Hack Regular Nerd Font Complete.ttf", font_size, &font);
+  lkCreateFont(&ctx, font_path, font_size, &font);
 #if MEASURE_PERF
   int64_t ts_setup = timestamp();
 #endif

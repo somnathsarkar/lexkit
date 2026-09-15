@@ -20,6 +20,10 @@
 LkVertexDescriptor_Text vd[10240] = {0};
 
 int main() {
+  char font_path[MAX_PATH];
+  UINT font_path_n = GetWindowsDirectoryA(font_path, MAX_PATH);
+  snprintf(font_path + font_path_n, MAX_PATH - font_path_n, "\\Fonts\\arial.ttf");
+
   char * cstr = NULL;
   i32 len_cstr = 0;
   read_file("pg3160.txt", &cstr, &len_cstr);
@@ -29,7 +33,7 @@ int main() {
   lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
 
   LkFont font;
-  lkCreateFont(&ctx, "C:/Windows/Fonts/Arial.ttf", font_size, &font);
+  lkCreateFont(&ctx, font_path, font_size, &font);
 #if MEASURE_PERF
   int64_t ts_setup = timestamp();
 #endif
