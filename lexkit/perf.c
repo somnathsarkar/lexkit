@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <lexkit/perf.h>
 
-#if MEASURE_PERF
 int64_t timestamp() {
   LARGE_INTEGER res = {0};
   QueryPerformanceCounter(&res);
@@ -24,4 +23,3 @@ void print_time_ms(const char* label, int64_t ts_diff)
 {
   printf("%s: %g ms\n", label, ts_diff * 1000.0 / timestamp_res());
 }
-#endif
