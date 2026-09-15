@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 project(lexkit)
+
+set(LEXKIT_HARFBUZZ_DIR "" CACHE PATH "HarfBuzz root")
+set(LEXKIT_FREETYPE_DIR "" CACHE PATH "FreeType root")
+if(NOT EXISTS ${LEXKIT_HARFBUZZ_DIR}/src/hb.h)
+  message(FATAL_ERROR "HarfBuzz not found at '${LEXKIT_HARFBUZZ_DIR}'. Configure with -DLEXKIT_HARFBUZZ_DIR=<Path to HarfBuzz root>")
+endif()
+if(NOT EXISTS ${LEXKIT_FREETYPE_DIR}/include/ft2build.h)
+  message(FATAL_ERROR "FreeType not found at '${LEXKIT_FREETYPE_DIR}'. Configure with -DLEXKIT_FREETYPE_DIR=<Path to FreeType root>")
+endif()
+
 add_library(lexkit)
 target_sources(
   lexkit PRIVATE
@@ -11,8 +21,8 @@ target_sources(
   lexkit/perf.c
   lexkit/twostep.c
 )
-target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} C:/Dev/harfbuzz-10.2.0/src C:/Dev/freetype-2.13.3/include)
-target_link_directories(lexkit PUBLIC C:/Dev/harfbuzz-10.2.0/build/$(ConfigurationName) C:/Dev/freetype-2.13.3/build/$(ConfigurationName))
+target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${LEXKIT_HARFBUZZ_DIR}/src ${LEXKIT_FREETYPE_DIR}/include)
+target_link_directories(lexkit PUBLIC ${LEXKIT_HARFBUZZ_DIR}/build/$<CONFIG> ${LEXKIT_FREETYPE_DIR}/build/$<CONFIG>)
 target_link_libraries(lexkit PUBLIC harfbuzz.lib debug freetyped.lib optimized freetype.lib)
 target_compile_options(lexkit PUBLIC /arch:AVX2)
 
