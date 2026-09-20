@@ -67,6 +67,51 @@ int CompareTwoStepSection(void* ctx, const void* a, const void* b)
   return ta->end - tb->end;
 }
 
+static bool DoesClassNameMatch(const char* name, const char* token)
+{
+  size_t len = strlen(name);
+  return strncmp(name, token, len) == 0 && (token[len] == 0 || token[len] == '#');
+}
+
+static const char* g_class_long_names[][2] = {
+  { "Left_To_Right", "L"  },
+  { "Right_To_Left", "R"  },
+  { "Arabic_Letter", "AL" },
+  { "European_Terminator", "ET" },
+  { "Other", "XX" },
+};
+
+static void ApplyMissingDefaults(const char* filepath, const char* map_enum_str[], u64 enum_max, i32* block_list, u32 block_list_len)
+{
+  char buf[S_MAX_LINE];
+  char buf_cls[S_MAX_LINE];
+  FILE* fp = NULL;
+  if (fopen_s(&fp, filepath, "r"))
+    return;
+  while (fgets(buf, S_MAX_LINE, fp))
+  {
+    u32 range_start = 0;
+    u32 range_end = 0;
+    if (sscanf_s(buf, "# @missing: %x..%x; %s", &range_start, &range_end, buf_cls, S_MAX_LINE) < 3)
+      continue;
+    const char* name = buf_cls;
+    for (i32 i = 0; i < sizeof(g_class_long_names) / sizeof(g_class_long_names[0]); i++)
+    {
+      if (strcmp(g_class_long_names[i][0], buf_cls) == 0)
+        name = g_class_long_names[i][1];
+    }
+    for (i32 cls_i = 0; cls_i < enum_max; cls_i++)
+    {
+      if (strcmp(map_enum_str[cls_i], name) != 0)
+        continue;
+      for (u32 j = range_start; j <= range_end && j < block_list_len; j++)
+        block_list[j] = cls_i;
+      break;
+    }
+  }
+  fclose(fp);
+}
+
 static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* filepath, const char* map_enum_str[], u64 enum_max, i32 enum_default, int* o_section_count)
 {
   assert(o_section_count != NULL && *o_section_count == 0);
@@ -107,7 +152,7 @@ static LkTwoStepSection* LkTwoStepSectionParseA(LkArena* arena, const char* file
     sections[range_i].cls = enum_default;
     for (i32 cls_i = 0; cls_i < enum_max; cls_i++)
     {
-      if (strncmp(map_enum_str[cls_i], buf_cls, strnlen_s(map_enum_str[cls_i], S_MAX_LINE)) == 0)
+      if (DoesClassNameMatch(map_enum_str[cls_i], buf_cls))
       {
         sections[range_i].cls = cls_i;
         break;
@@ -145,7 +190,7 @@ static LkTwoStepSection* LkTwoStepSectionParseB(LkArena* arena, const char* file
     sections[range_i].cls = enum_default;
     for (int i_cls = 0; i_cls < enum_max; i_cls++)
     {
-      if(strncmp(map_enum_str[i_cls], buf_cls, strnlen_s(map_enum_str[i_cls], S_MAX_LINE)) == 0)
+      if(DoesClassNameMatch(map_enum_str[i_cls], buf_cls))
       {
         sections[range_i].cls = i_cls;
         break;
@@ -197,7 +242,7 @@ static LkTwoStepSection* LkTwoStepSectionParseC(LkArena* arena, const char* file
     sections[range_i].cls = enum_default;
     for (int i_cls = 0; i_cls < enum_max; i_cls++)
     {
-      if (strncmp(map_enum_str[i_cls], buf_cls, strnlen_s(map_enum_str[i_cls], S_MAX_LINE)) == 0)
+      if (DoesClassNameMatch(map_enum_str[i_cls], buf_cls))
       {
         sections[range_i].cls = i_cls;
         break;
@@ -290,7 +335,7 @@ LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map
       assert(false);
   }
   qsort_s(sections, section_count, sizeof(LkTwoStepSection), CompareTwoStepSection, NULL);
-  u32 max_codepoint = sections[section_count - 1].end + 1;
+  u32 max_codepoint = 0x110000;
   u32 block_count = (max_codepoint + BLOCK_SIZE - 1) / BLOCK_SIZE;
   i32* block_list = APushArray(arena->alt, i32, block_count * BLOCK_SIZE);
   i32* reduced_block_list = APushArray(arena->alt, i32, block_count * BLOCK_SIZE);
@@ -299,6 +344,8 @@ LkTwoStep* LkTwoStepCreate(LkArena* arena, const char* filepath, const char* map
   {
     block_list[i] = enum_default;
   }
+  if (unifmt == UNIFMT_A)
+    ApplyMissingDefaults(filepath, map_enum_str, enum_max, block_list, block_count * BLOCK_SIZE);
   for (int i = 0; i < section_count; i++)
   {
     for(int j = sections[i].start; j <= sections[i].end; j++)
