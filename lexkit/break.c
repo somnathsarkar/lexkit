@@ -8,8 +8,6 @@
 
 #include <immintrin.h>
 
-#define UNICODE_REPLACEMENT_CHARACTER 0xFFFD
-
 const char* g_map_gc_str[] = {
   "Lu",      // GC_Lu
   "Ll",      // GC_Ll

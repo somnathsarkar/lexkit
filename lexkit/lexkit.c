@@ -8,7 +8,9 @@
 #include FT_FREETYPE_H
 
 #include <assert.h>
+#include <string.h>
 
+#define UNICODE_REPLACEMENT_CHARACTER 0xFFFD
 #define GRAPHEME_BREAK_COUNT 16
 
 void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx)
@@ -162,24 +164,120 @@ void lkDestroyFont(LkContext* ctx, LkFont* font)
   font->font = NULL;
 }
 
+// "Flexible and Economical UTF-8 Decoder" by Bjoern Hoehrmann
+
+#define UTF8_ACCEPT 0
+#define UTF8_REJECT 1
+
+static const u8 utf8d[] = {
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+  8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+  0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+  0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
+  0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+  1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+  1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+  1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+};
+
+static inline u32 Utf8DecodeStep(u32* state, u32* codep, u32 byte)
+{
+  u32 type = utf8d[byte];
+
+  *codep = (*state != UTF8_ACCEPT) ?
+    (byte & 0x3fu) | (*codep << 6) :
+    (0xff >> type) & (byte);
+
+  *state = utf8d[256 + *state*16 + type];
+  return *state;
+}
+
+static u64 Utf8Decode(const u8* s, u64 n, u32* o_codepoints)
+{
+  u64 count = 0;
+  u64 i = 0;
+  u64 start = 0;
+  u32 state = UTF8_ACCEPT;
+  u32 cp = 0;
+  while (i < n)
+  {
+    if (state == UTF8_ACCEPT)
+    {
+      // Fast path for ASCII characters
+
+      while (i + 8 <= n)
+      {
+        u64 chunk;
+        memcpy(&chunk, s + i, 8);
+        if (chunk & 0x8080808080808080llu)
+          break;
+        if (o_codepoints)
+        {
+          for (i32 k = 0; k < 8; k++)
+            o_codepoints[count + k] = s[i + k];
+        }
+        count += 8;
+        i += 8;
+      }
+      if (i >= n)
+        break;
+      start = i;
+    }
+
+    // Lookup table that supports longer codepoints
+
+    Utf8DecodeStep(&state, &cp, s[i]);
+    i++;
+    if (state != UTF8_ACCEPT)
+    {
+      // Replace invalid codepoints with the replacement character
+
+      if (state != UTF8_REJECT && i < n)
+        continue;
+      cp = UNICODE_REPLACEMENT_CHARACTER;
+      i = start + 1;
+      state = UTF8_ACCEPT;
+    }
+    if (o_codepoints)
+      o_codepoints[count] = cp;
+    count++;
+  }
+  return count;
+}
+
 void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, LkText* o_text)
 {
-  hb_buffer_t *buf;
-  buf = hb_buffer_create();
-  hb_buffer_add_utf8(buf, cstr, -1, 0, -1);
-  hb_buffer_guess_segment_properties(buf);
-
-  o_text->arena = lkArenaCreateFrom(ctx->alloc);
-  o_text->codepoint_count = 0;
-  hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &o_text->codepoint_count);
-
-  o_text->codepoints = APushArray(o_text->arena, u32, o_text->codepoint_count);
-  for (int i = 0; i < o_text->codepoint_count; i++)
-    o_text->codepoints[i] = glyph_info[i].codepoint;
-  hb_buffer_destroy(buf);
-
 #if MEASURE_PERF
   int64_t ts = timestamp();
+#endif
+  const u8* bytes = (const u8*)cstr;
+  u64 len_bytes;
+  if (len_cstr < 0)
+  {
+    len_bytes = strlen(cstr);
+  }
+  else
+  {
+    // Check if buffer is less than len_cstr
+
+    const u8* nul = (const u8*)memchr(bytes, 0, (size_t)len_cstr);
+    len_bytes = nul ? (u64)(nul - bytes) : (u64)len_cstr;
+  }
+
+  o_text->arena = lkArenaCreateFrom(ctx->alloc);
+  o_text->codepoint_count = (u32)Utf8Decode(bytes, len_bytes, NULL);
+  o_text->codepoints = APushArray(o_text->arena, u32, o_text->codepoint_count);
+  Utf8Decode(bytes, len_bytes, o_text->codepoints);
+
+#if MEASURE_PERF
+  printf("Decode: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
 #endif
   o_text->units = NULL;
   lkComputeBidiUnits(ctx, o_text->arena, o_text->codepoints, o_text->codepoint_count, &o_text->units);
