@@ -1149,9 +1149,17 @@ void lkSplitParagraphs(
   LkArena* scratch = arena->alt;
   u64 scratch_pos = scratch->pos;
 
+  i32 para_count = 0;
+  for (i32 i = 0; i < len_codepoints; i++)
+  {
+    if (units[i].bidic == BIDIC_B)
+      para_count++;
+  }
+  if (len_codepoints > 0 && units[len_codepoints - 1].bidic != BIDIC_B)
+    para_count++;
+
   *o_paragraph_count = 0;
-  *o_paragraphs = NULL;
-  LkParagraph* para_focus = NULL;
+  *o_paragraphs = APushArray(arena, LkParagraph, para_count);
 
   i32 para_start_i = 0;
   bool para_level_found = false;
@@ -1186,18 +1194,7 @@ void lkSplitParagraphs(
     }
     else if (unit.bidic == BIDIC_B)
     {
-      if (*o_paragraphs == NULL)
-      {
-        *o_paragraphs = APush(arena, LkParagraph);
-        para_focus = *o_paragraphs;
-      }
-      else
-      {
-        para_focus->next = APush(arena, LkParagraph);
-        para_focus = para_focus->next;
-      }
-      *para_focus = (LkParagraph) { para_start_i, i, para_level, NULL };
-      (*o_paragraph_count)++;
+      (*o_paragraphs)[(*o_paragraph_count)++] = (LkParagraph) { para_start_i, i, para_level };
       para_start_i = i + 1;
       para_level_found = false;
       para_level = 0;
@@ -1206,18 +1203,7 @@ void lkSplitParagraphs(
   }
   if (len_codepoints > 0 && para_start_i < len_codepoints)
   {
-    if (*o_paragraphs == NULL)
-    {
-      *o_paragraphs = APush(arena, LkParagraph);
-      para_focus = *o_paragraphs;
-    }
-    else
-    {
-      para_focus->next = APush(arena, LkParagraph);
-      para_focus = para_focus->next;
-    }
-    *para_focus = (LkParagraph) { para_start_i, len_codepoints - 1, para_level, NULL };
-    (*o_paragraph_count)++;
+    (*o_paragraphs)[(*o_paragraph_count)++] = (LkParagraph) { para_start_i, len_codepoints - 1, para_level };
   }
 
   lkArenaRestore(scratch, scratch_pos);
@@ -1275,9 +1261,9 @@ void lkSplitBidiRuns(
   i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
   LkLevelRunNode* lrun_list_tail = NULL;
   LkLevelRunNode* lrun_list_head = NULL;
-  LkParagraph* para_focus = paragraphs;
   for (i32 para_i = 0; para_i < paragraph_count; para_i++)
   {
+      const LkParagraph* para_focus = &paragraphs[para_i];
       i32 para_level_run_count = -1;
       LkLevelRun* para_level_runs = NULL;
 
@@ -1337,7 +1323,6 @@ void lkSplitBidiRuns(
 
       *o_level_run_count += para_level_run_count; 
 
-      para_focus = para_focus->next;
   }
 
   *o_level_runs = APushArray(arena, LkLevelRun, *o_level_run_count);

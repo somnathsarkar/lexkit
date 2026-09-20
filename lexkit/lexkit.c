@@ -370,9 +370,9 @@ LkLine* lkSplitLines(
   float cursor_y = 0.0f;
   int vdc = 0;
 
-  LkParagraph* para_focus = paras;
   for (i32 para_i = 0; para_i < para_count; para_i++)
   {
+    const LkParagraph* para_focus = &paras[para_i];
     float cursor_x = 0.0f;
     float cursor_x_before_last_line_break_i = 0.0f;
     int codepoint_i = para_focus->para_start_i;
@@ -541,7 +541,6 @@ LkLine* lkSplitLines(
     new_line = &((*new_line)->next);
     (*o_line_count)++;
     last_line_break_valid = false;
-    para_focus = para_focus->next;
   }
 
   LkLine* o_lines = APushArray(arena, LkLine, *o_line_count);
