@@ -3,3 +3,4 @@ generated/
 local/
 .clangd
 .vscode/
+article/figures/out/
