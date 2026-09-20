@@ -711,7 +711,8 @@ static void lkSplitBidiRunsParagraph(
   i32 overflow_isolate_count = 0;
   i32 overflow_embedding_count = 0;
   i32 valid_isolate_count = 0;
-  i32 last_isolate_initiator = -1;
+  i32* isolate_stack = APushArray(scratch, i32, para_end_i - para_start_i + 1);
+  i32 isolate_sp = 0;
 
   for (i32 i = para_start_i; i <= para_end_i; i++)
   {
@@ -804,11 +805,7 @@ static void lkSplitBidiRunsParagraph(
           BidiStatus curr_status = stack[sp - 1];
           i32 next_level = curr_status.level + 1;
           next_level = (next_level & 1) ? next_level : (next_level + 1);
-          if (last_isolate_initiator != -1)
-          {
-            io_matching_isolate[last_isolate_initiator] = i;
-          }
-          last_isolate_initiator = i;
+          isolate_stack[isolate_sp++] = i;
           if (curr_status.override == DIROVR_LeftToRight)
           {
             units[i].bidic = BIDIC_L;
@@ -840,11 +837,7 @@ static void lkSplitBidiRunsParagraph(
           BidiStatus curr_status = stack[sp - 1];
           i32 next_level = curr_status.level + 1;
           next_level = (next_level & 1) ? (next_level + 1) : next_level;
-          if (last_isolate_initiator != -1)
-          {
-            io_matching_isolate[last_isolate_initiator] = i;
-          }
-          last_isolate_initiator = i;
+          isolate_stack[isolate_sp++] = i;
           if (curr_status.override == DIROVR_LeftToRight)
           {
             units[i].bidic = BIDIC_L;
@@ -875,11 +868,7 @@ static void lkSplitBidiRunsParagraph(
           io_level[i] = stack[sp - 1].level;
           i32 pdi_match = 0;
           i32 first_isolate_level = 0;
-          if (last_isolate_initiator != -1)
-          {
-            io_matching_isolate[last_isolate_initiator] = i;
-          }
-          last_isolate_initiator = i;
+          isolate_stack[isolate_sp++] = i;
           for (int j = i + 1; j < len_units; j++)
           {
             if (units[j].bidic == BIDIC_L)
@@ -947,14 +936,12 @@ static void lkSplitBidiRunsParagraph(
       case BIDIC_PDI:
         {
           assert(sp > 0);
-          if (last_isolate_initiator != -1)
+          if (isolate_sp > 0)
           {
-            i32 new_last_initiator = io_matching_isolate[last_isolate_initiator];
-            io_matching_isolate[i] = last_isolate_initiator;
-            io_matching_isolate[last_isolate_initiator] = i;
-            last_isolate_initiator = new_last_initiator;
+            i32 initiator_i = isolate_stack[--isolate_sp];
+            io_matching_isolate[i] = initiator_i;
+            io_matching_isolate[initiator_i] = i;
           }
-          last_isolate_initiator = i;
           if (overflow_isolate_count > 0)
           {
             overflow_isolate_count--;
