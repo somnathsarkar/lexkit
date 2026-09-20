@@ -300,7 +300,7 @@ static void ResolveIsolatingRunSequence(
       if (levels[unit_i] == -1)
         continue;
       BIDIC cls = units[unit_i].bidic;
-      if (cls == BIDIC_ET && cls_prev == BIDIC_EN)
+      if (cls == BIDIC_ET && cls_next == BIDIC_EN)
         units[unit_i].bidic = BIDIC_EN;
       cls_next = units[unit_i].bidic;
     }
@@ -334,7 +334,7 @@ static void ResolveIsolatingRunSequence(
       BIDIC cls = units[unit_i].bidic;
       if (cls == BIDIC_EN && cls_prev_str == BIDIC_L)
       {
-        cls = BIDIC_L;
+        units[unit_i].bidic = BIDIC_L;
       }
       BIDIC cls_prev = units[unit_i].bidic;
       if (cls_prev == BIDIC_L ||
@@ -1240,6 +1240,24 @@ void lkSplitParagraphs(
   lkArenaRestore(scratch, scratch_pos);
 }
 
+static bool IsPlainLtrParagraph(
+    const BidiUnit* units,
+    i32 para_start_i,
+    i32 para_end_i,
+    i32 para_level)
+{
+  const u32 plain_mask =
+    (1u << BIDIC_L)  | (1u << BIDIC_EN)  | (1u << BIDIC_ES) | (1u << BIDIC_ET) |
+    (1u << BIDIC_CS) | (1u << BIDIC_NSM) | (1u << BIDIC_B)  | (1u << BIDIC_S)  |
+    (1u << BIDIC_WS) | (1u << BIDIC_ON);
+  if (para_level != 0)
+    return false;
+  u32 seen = 0;
+  for (i32 i = para_start_i; i <= para_end_i; i++)
+    seen |= 1u << units[i].bidic;
+  return (seen & ~plain_mask) == 0;
+}
+
 struct LkLevelRunNode
 {
   i32 lrun_count;
@@ -1277,27 +1295,45 @@ void lkSplitBidiRuns(
   LkParagraph* para_focus = paragraphs;
   for (i32 para_i = 0; para_i < paragraph_count; para_i++)
   {
-      lkSplitBidiRunsParagraph(
-          scratch,
-          units,
-          len_codepoints,
-          para_focus->para_start_i,
-          para_focus->para_end_i,
-          para_focus->para_level,
-          *o_levels,
-          matching_isolate);
-
       i32 para_level_run_count = -1;
       LkLevelRun* para_level_runs = NULL;
 
-      LevelRunSplit(
-          scratch,
-          *o_levels,
-          para_focus->para_start_i,
-          para_focus->para_end_i,
-          para_focus->para_level,
-          &para_level_run_count,
-          &para_level_runs);
+      // Fast path if the entire path is LTR, entire paragraph is single LTR run at level 0
+      if (IsPlainLtrParagraph(units, para_focus->para_start_i, para_focus->para_end_i, para_focus->para_level))
+      {
+        for (i32 i = para_focus->para_start_i; i <= para_focus->para_end_i; i++)
+        {
+          (*o_levels)[i] = 0;
+          if (units[i].bidic != BIDIC_B || para_focus->para_start_i == para_focus->para_end_i)
+            units[i].bidic = BIDIC_L;
+        }
+        para_level_runs = APush(scratch, LkLevelRun);
+        *para_level_runs = (LkLevelRun) {
+          para_focus->para_start_i, para_focus->para_end_i,
+          para_focus->para_start_i, para_focus->para_end_i, 0 };
+        para_level_run_count = 1;
+      }
+      else
+      {
+        lkSplitBidiRunsParagraph(
+            scratch,
+            units,
+            len_codepoints,
+            para_focus->para_start_i,
+            para_focus->para_end_i,
+            para_focus->para_level,
+            *o_levels,
+            matching_isolate);
+
+        LevelRunSplit(
+            scratch,
+            *o_levels,
+            para_focus->para_start_i,
+            para_focus->para_end_i,
+            para_focus->para_level,
+            &para_level_run_count,
+            &para_level_runs);
+      }
 
       LkLevelRunNode* lrun_focus = NULL;
       if (lrun_list_tail == NULL)
