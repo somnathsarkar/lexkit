@@ -440,6 +440,16 @@ static void BreakerGetNextGlyphLineBreak(Breaker* brk, const LkUnicodeData* ud, 
   }
 }
 
+static bool IsLbcxSpace(LBCX lbcx)
+{
+  return lbcx == LBCX_SP ||
+         lbcx == LBCX_ZW_SP ||
+         lbcx == LBCX_OP_SP ||
+         lbcx == LBCX_15a_SP ||
+         lbcx == LBCX_CL_CP_SP ||
+         lbcx == LBCX_B2_SP;
+}
+
 static LBRK BreakerComputeLbrk(Breaker* brk, const LkUnicodeData* ud)
 {
   // LB3
@@ -497,7 +507,16 @@ static LBRK BreakerComputeLbrk(Breaker* brk, const LkUnicodeData* ud)
 
   if (g.lbc == LBC_ZWJ ||
       g.lbc == LBC_CM)
-    return LBRK_PRO;
+  {
+    if (!IsLbcxSpace(brk->lbcx_adj))
+      return LBRK_PRO;
+
+    // LB10
+
+    g.lbc = LBC_AL;
+    g.gc = GC_Lu;
+    g.eaw = EAW_Na;
+  }
 
   // LB11
 
@@ -603,7 +622,7 @@ static LBRK BreakerComputeLbrk(Breaker* brk, const LkUnicodeData* ud)
 
   // LB18
 
-  if (brk->lbcx_adj == LBCX_SP)
+  if (IsLbcxSpace(brk->lbcx_adj))
     return LBRK_OPT;
 
   // LB19
@@ -1306,8 +1325,7 @@ BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
       brk->lbcx = LBCX_15a;
       brk->lbcx_adj = LBCX_15a;
     }
-    
-    if (g.lbc == LBC_QU)
+    else if (g.lbc == LBC_QU)
     {
       brk->lbcx = LBCX_19a;
       brk->lbcx_adj = LBCX_19a;
@@ -1447,7 +1465,7 @@ BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
          s != LBCX_CR &&
          s != LBCX_LF &&
          s != LBCX_NL &&
-         s != LBCX_SP &&
+         !IsLbcxSpace(s) &&
          s != LBCX_ZW))
     {
       assert(lbcx_new == LBCX_ZWJ || lbcx_new == LBCX_CM);
@@ -1463,7 +1481,7 @@ BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
              s == LBCX_CR ||
              s == LBCX_LF ||
              s == LBCX_NL ||
-             s == LBCX_SP ||
+             IsLbcxSpace(s) ||
              s == LBCX_ZW))
     {
       assert(lbcx_new == LBCX_ZWJ || lbcx_new == LBCX_CM);
