@@ -85,6 +85,7 @@ struct LkText
   i32 level_run_count;
   LkLevelRun* level_runs;
   LkGlyph** glyphs;
+  BreakerResult* breaks;
   LkArena* arena;
 };
 

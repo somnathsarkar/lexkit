@@ -304,6 +304,11 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
   lkShapeText(o_text->arena, font, o_text, o_text->level_run_count, o_text->level_runs, &o_text->glyphs);
 #if MEASURE_PERF
   printf("lkShapeText: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
+  ts = timestamp();
+#endif
+  o_text->breaks = lkGetBreaks(o_text->arena, o_text, ctx->ud);
+#if MEASURE_PERF
+  printf("lkGetBreaks: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
 #endif
 }
 
@@ -317,6 +322,7 @@ void lkDestroyText(LkContext* ctx, LkText* text)
   text->levels = NULL;
   text->level_runs = NULL;
   text->glyphs = NULL;
+  text->breaks = NULL;
   text->codepoint_count = 0;
   text->para_count = 0;
   text->level_run_count = 0;
@@ -359,18 +365,7 @@ LkLine* lkSplitLines(
 
   *o_line_count = 0;
 
-#if MEASURE_PERF
-  static bool first_render = false;
-  int64_t ts = timestamp();
-#endif
-  BreakerResult* breaks = lkGetBreaks(scratch, text, ctx->ud);
-#if MEASURE_PERF
-  if (!first_render)
-  {
-    printf("lkGetBreaks: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
-    first_render = true;
-  }
-#endif
+  const BreakerResult* breaks = text->breaks;
 
   float cursor_y = 0.0f;
   int vdc = 0;
