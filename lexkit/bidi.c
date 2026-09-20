@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#define UNICODE_LEFT_POINTING_ANGLE_BRACKET 0x2329
+#define UNICODE_LEFT_ANGLE_BRACKET 0x3008
+
 BidiUnit BidiUnitCreate(const u32 codepoint, const LkUnicodeData* ud)
 {
   BidiUnit ret = {0};
@@ -17,8 +20,10 @@ BidiUnit BidiUnitCreate(const u32 codepoint, const LkUnicodeData* ud)
     {
       if (codepoint == ud->bidipb_key[i])
       {
-        ret.bidipb = ud->bidipb_value[i];
         ret.bidipbt = ud->bidipbt[i];
+        ret.bidipb = (ret.bidipbt == BIDIPBT_Open) ? codepoint : ud->bidipb_value[i];
+        if (ret.bidipb == UNICODE_LEFT_POINTING_ANGLE_BRACKET)
+          ret.bidipb = UNICODE_LEFT_ANGLE_BRACKET;
         break;
       }
     }
@@ -123,7 +128,7 @@ typedef struct
   i32 unit_end_i;
 } BracketPair;
 
-static int CmpBracketPair(void * v_bp_a, const void* v_bp_b, const void* ctx)
+static int CmpBracketPair(void* ctx, const void* v_bp_a, const void* v_bp_b)
 {
   const BracketPair* bp_a = (BracketPair*) v_bp_a;
   const BracketPair* bp_b = (BracketPair*) v_bp_b;
@@ -244,14 +249,15 @@ static void ResolveIsolatingRunSequence(
         continue;
       BIDIC cls = units[unit_i].bidic;
       if ((cls == BIDIC_ES || cls == BIDIC_CS) &&
-          (cls_prev == BIDIC_EN || cls == BIDIC_AN))
+          (cls_prev == BIDIC_EN || cls_prev == BIDIC_AN))
       {
         bool found_next = false;
         BIDIC cls_next = irun.eos;
         for (i32 lrun_j = lrun_i; lrun_j <= irun.lrun_end_i; lrun_j++)
         {
-          for (i32 unit_j = max_i32(unit_i + 1, lruns[lrun_j].valid_start_i);
-                unit_j <= lruns[lrun_j].valid_end_i; unit_j++)
+          LkLevelRun lrun_next = lruns[irun_lrun_idxs[lrun_j]];
+          for (i32 unit_j = (lrun_j == lrun_i) ? unit_i + 1 : lrun_next.valid_start_i;
+                unit_j <= lrun_next.valid_end_i; unit_j++)
           {
             if (levels[unit_j] == -1) continue;
             found_next = true;
@@ -368,7 +374,7 @@ static void ResolveIsolatingRunSequence(
   BracketStackItem* bracket_stack = APushArray(scratch, BracketStackItem, g_bracket_stack_size);
   i32 bracket_sp = 0;
   bool stack_overflow = false;
-  for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
+  for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i && !stack_overflow; lrun_i++)
   {
     LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
@@ -431,11 +437,11 @@ static void ResolveIsolatingRunSequence(
       for (i32 unit_i = unit_start_i; unit_i <= unit_end_i; unit_i++)
       {
         if (levels[unit_i] == -1) continue; 
-        if (units[unit_i].bidic == BIDIC_L ||
-            units[unit_i].bidic == BIDIC_R)
+        BIDIC strong_class;
+        if (FindN1StrongClass(units[unit_i].bidic, &strong_class))
         {
           found_strong_class = true;
-          found_matching_strong_class |= (units[unit_i].bidic == matching_class);
+          found_matching_strong_class |= (strong_class == matching_class);
         }
       }
     }
@@ -467,24 +473,27 @@ static void ResolveIsolatingRunSequence(
         for (i32 unit_i = unit_start_i; unit_i >= lrun.valid_start_i; unit_i--)
         {
           if (levels[unit_i] == -1) continue; 
-          if (units[unit_i].bidic == BIDIC_L ||
-              units[unit_i].bidic == BIDIC_R)
+          BIDIC strong_class;
+          if (FindN1StrongClass(units[unit_i].bidic, &strong_class))
           {
             class_search_found = true;
-            class_search_result = units[unit_i].bidic;
+            class_search_result = strong_class;
             break;
           }
         }
         
         if (class_search_found) break;
       }
+
+      BIDIC resolved_class = (class_search_result == opposite_class) ? opposite_class : matching_class;
+      units[bp[bracket_i].unit_start_i].bidic = resolved_class;
+      units[bp[bracket_i].unit_end_i].bidic = resolved_class;
     }
 
     // 4. Else, don't set bracket pair
   }
 
-  // Set all adjacent (original, before W1) NSMs to match any changed brackets
-  // Forward direction
+  // Set all following (original, before W1) NSMs to match any changed brackets
 
   bool adjacent_changed_bracket = false;
   BIDIC adjacent_changed_class = BIDIC_L;
@@ -493,8 +502,12 @@ static void ResolveIsolatingRunSequence(
     LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
     for (i32 unit_i = lrun.valid_start_i; unit_i <= lrun.valid_end_i; unit_i++)
     {
+      if (levels[unit_i] == -1)
+        continue;
+
       // TODO: This could be faster, full linear search isn't required
 
+      bool is_changed_bracket = false;
       for (i32 bracket_i = 0; bracket_i < bracket_count; bracket_i++)
       {
         if (assigned_class[bracket_i] && (bp[bracket_i].unit_start_i == unit_i ||
@@ -502,42 +515,12 @@ static void ResolveIsolatingRunSequence(
         {
           adjacent_changed_bracket = true;
           adjacent_changed_class = units[unit_i].bidic;
+          is_changed_bracket = true;
           break;
         }
       }
-
-      if (units[unit_i].bidic_orig == BIDIC_NSM && adjacent_changed_bracket)
-      {
-        units[unit_i].bidic = adjacent_changed_class;
-      }
-      else
-      {
-        adjacent_changed_bracket = false;
-      }
-    }
-  }
-
-  // Reverse direction
-
-  adjacent_changed_bracket = false;
-  adjacent_changed_class = BIDIC_L;
-  for (i32 lrun_i = irun.lrun_end_i; lrun_i >= irun.lrun_start_i; lrun_i--)
-  {
-    LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
-    for (i32 unit_i = lrun.valid_end_i; unit_i >= lrun.valid_end_i; unit_i--)
-    {
-      // TODO: This could be faster, full linear search isn't required
-
-      for (i32 bracket_i = 0; bracket_i < bracket_count; bracket_i++)
-      {
-        if (assigned_class[bracket_i] && (bp[bracket_i].unit_start_i == unit_i ||
-              bp[bracket_i].unit_end_i == unit_i))
-        {
-          adjacent_changed_bracket = true;
-          adjacent_changed_class = units[unit_i].bidic;
-          break;
-        }
-      }
+      if (is_changed_bracket)
+        continue;
 
       if (units[unit_i].bidic_orig == BIDIC_NSM && adjacent_changed_bracket)
       {
@@ -554,7 +537,7 @@ static void ResolveIsolatingRunSequence(
 
   bool in_strong_class_segment = true;
   BIDIC strong_class_segment = irun.sos;
-  i32 strong_class_segment_i = lruns[irun.lrun_start_i].valid_start_i;
+  i32 strong_class_segment_i = lruns[irun_lrun_idxs[irun.lrun_start_i]].valid_start_i;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i; lrun_i++)
   {
     LkLevelRun lrun = lruns[irun_lrun_idxs[lrun_i]];
@@ -570,7 +553,7 @@ static void ResolveIsolatingRunSequence(
         {
           for (i32 segment_i = strong_class_segment_i; segment_i <= unit_i; segment_i++)
           {
-            if (levels[segment_i] == -1) continue;
+            if (levels[segment_i] != embedding_level) continue;
             if (IsNI(units[segment_i].bidic))
             {
               units[segment_i].bidic = strong_class_segment;
@@ -598,7 +581,7 @@ static void ResolveIsolatingRunSequence(
 
         for (i32 segment_i = strong_class_segment_i; segment_i <= unit_i; segment_i++)
         {
-          if (levels[segment_i] == -1) continue;
+          if (levels[segment_i] != embedding_level) continue;
           if (IsNI(units[segment_i].bidic))
           {
             units[segment_i].bidic = strong_class_segment;
@@ -728,7 +711,9 @@ static void lkSplitBidiRunsParagraph(
           BidiStatus curr_status = stack[sp - 1];
           i32 next_level = curr_status.level + 1;
           next_level = (next_level & 1) ? next_level : (next_level + 1);
-          if (next_level <= g_bidi_max_depth)
+          if (next_level <= g_bidi_max_depth &&
+              overflow_embedding_count == 0 &&
+              overflow_isolate_count == 0)
           {
             assert(sp < g_bidi_max_depth + 2);
             stack[sp++] = (BidiStatus){next_level, DIROVR_Neutral, false};
@@ -747,7 +732,9 @@ static void lkSplitBidiRunsParagraph(
           BidiStatus curr_status = stack[sp - 1];
           i32 next_level = curr_status.level + 1;
           next_level = (next_level & 1) ? (next_level + 1) : next_level;
-          if (next_level <= g_bidi_max_depth)
+          if (next_level <= g_bidi_max_depth &&
+              overflow_embedding_count == 0 &&
+              overflow_isolate_count == 0)
           {
             assert(sp < g_bidi_max_depth + 2);
             stack[sp++] = (BidiStatus){next_level, DIROVR_Neutral, false};
@@ -766,7 +753,9 @@ static void lkSplitBidiRunsParagraph(
           BidiStatus curr_status = stack[sp - 1];
           i32 next_level = curr_status.level + 1;
           next_level = (next_level & 1) ? next_level : (next_level + 1);
-          if (next_level <= g_bidi_max_depth)
+          if (next_level <= g_bidi_max_depth &&
+              overflow_embedding_count == 0 &&
+              overflow_isolate_count == 0)
           {
             assert(sp < g_bidi_max_depth + 2);
             stack[sp++] = (BidiStatus){next_level, DIROVR_RightToLeft, false};
@@ -785,7 +774,9 @@ static void lkSplitBidiRunsParagraph(
           BidiStatus curr_status = stack[sp - 1];
           i32 next_level = curr_status.level + 1;
           next_level = (next_level & 1) ? (next_level + 1) : next_level;
-          if (next_level <= g_bidi_max_depth)
+          if (next_level <= g_bidi_max_depth &&
+              overflow_embedding_count == 0 &&
+              overflow_isolate_count == 0)
           {
             assert(sp < g_bidi_max_depth + 2);
             stack[sp++] = (BidiStatus){next_level, DIROVR_LeftToRight, false};
@@ -1025,6 +1016,9 @@ static void lkSplitBidiRunsParagraph(
     }
   }
 
+  while (isolate_sp > 0)
+    io_matching_isolate[isolate_stack[--isolate_sp]] = -2;
+
   // X10
   i32 lrun_count = -1;
   LkLevelRun *lruns = NULL;
@@ -1049,35 +1043,23 @@ static void lkSplitBidiRunsParagraph(
       iruns[irun_count].lrun_end_i = irun_i;
       lrun_used[focus] = true;
       irun_i++;
-      BIDIC last_valid_class = units[lruns[focus].valid_end_i].bidic;
-      if (last_valid_class == BIDIC_LRI ||
-          last_valid_class == BIDIC_RLI ||
-          last_valid_class == BIDIC_FSI ||
-          io_matching_isolate[lruns[focus].valid_end_i] != -1)
-      {
-        i32 matching_isolate = io_matching_isolate[lruns[focus].valid_end_i];
-        i32 found_match_lrun_i = -1;
-        for (i32 lrun_j = lrun_i + 1; lrun_j < lrun_count; lrun_j++)
-        {
-          if (lruns[lrun_j].start_i > matching_isolate)
-            break;
-          if (units[lruns[lrun_j].valid_start_i].bidic == BIDIC_PDI &&
-              lruns[lrun_j].valid_start_i == matching_isolate)
-          {
-            found_match_lrun_i = lrun_j;
-            break;
-          }
-        }
-        if (found_match_lrun_i != -1 &&
-            lruns[found_match_lrun_i].level != lruns[lrun_i].level)
-        {
-          focus = found_match_lrun_i;
-        }
-        else
-          break;
-      }
-      else
+      i32 matching_isolate = io_matching_isolate[lruns[focus].valid_end_i];
+      if (matching_isolate <= lruns[focus].valid_end_i)
         break;
+      i32 found_match_lrun_i = -1;
+      for (i32 lrun_j = focus + 1; lrun_j < lrun_count; lrun_j++)
+      {
+        if (lruns[lrun_j].start_i > matching_isolate)
+          break;
+        if (lruns[lrun_j].valid_start_i == matching_isolate)
+        {
+          found_match_lrun_i = lrun_j;
+          break;
+        }
+      }
+      if (found_match_lrun_i == -1)
+        break;
+      focus = found_match_lrun_i;
     }
     irun_count++;
   }
@@ -1085,12 +1067,19 @@ static void lkSplitBidiRunsParagraph(
   // Fill in sos/eos
   for (i32 irun_i = 0; irun_i < irun_count; irun_i++)
   {
+    LkLevelRun lrun_first = lruns[irun_lrun_idxs[iruns[irun_i].lrun_start_i]];
+    LkLevelRun lrun_last = lruns[irun_lrun_idxs[iruns[irun_i].lrun_end_i]];
+
     {
       // SOS
-      i32 level_a = (irun_i > 0) ?
-                      io_level[lruns[iruns[irun_i - 1].lrun_end_i].valid_end_i] :
-                      para_level;
-      i32 level_b = io_level[lruns[iruns[irun_i].lrun_start_i].valid_start_i];
+      i32 level_a = para_level;
+      for (i32 i = lrun_first.start_i - 1; i >= para_start_i; i--)
+      {
+        if (io_level[i] == -1) continue;
+        level_a = io_level[i];
+        break;
+      }
+      i32 level_b = io_level[lrun_first.valid_start_i];
       i32 level_ab = (level_a < level_b) ? level_b : level_a;
       if (level_ab & 1)
         iruns[irun_i].sos = BIDIC_R;
@@ -1100,10 +1089,17 @@ static void lkSplitBidiRunsParagraph(
 
     {
       // EOS
-      i32 level_a = (irun_i + 1 < irun_count) ?
-                      io_level[lruns[iruns[irun_i + 1].lrun_start_i].valid_start_i] :
-                      para_level;
-      i32 level_b = io_level[lruns[iruns[irun_i].lrun_end_i].valid_end_i];
+      i32 level_a = para_level;
+      if (io_matching_isolate[lrun_last.valid_end_i] != -2)
+      {
+        for (i32 i = lrun_last.end_i + 1; i <= para_end_i; i++)
+        {
+          if (io_level[i] == -1) continue;
+          level_a = io_level[i];
+          break;
+        }
+      }
+      i32 level_b = io_level[lrun_last.valid_end_i];
       i32 level_ab = (level_a < level_b) ? level_b : level_a;
       if (level_ab & 1)
         iruns[irun_i].eos = BIDIC_R;
