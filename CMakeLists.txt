@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(lexkit)
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 set(LEXKIT_HARFBUZZ_DIR "" CACHE PATH "HarfBuzz root")
 set(LEXKIT_FREETYPE_DIR "" CACHE PATH "FreeType root")
 if(NOT EXISTS ${LEXKIT_HARFBUZZ_DIR}/src/hb.h)
@@ -20,6 +22,7 @@ target_sources(
   lexkit/sizes.c
   lexkit/perf.c
   lexkit/twostep.c
+  lexkit/job.c
 )
 target_include_directories(lexkit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${LEXKIT_HARFBUZZ_DIR}/src ${LEXKIT_FREETYPE_DIR}/include)
 target_link_directories(lexkit PUBLIC ${LEXKIT_HARFBUZZ_DIR}/build/$<CONFIG> ${LEXKIT_FREETYPE_DIR}/build/$<CONFIG>)

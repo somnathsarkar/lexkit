@@ -2,6 +2,7 @@
 #include <lexkit/alloc.h>
 #include <lexkit/bidi.h>
 #include <lexkit/break.h>
+#include <lexkit/job.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -1120,6 +1121,24 @@ static void lkSplitBidiRunsParagraph(
   lkArenaRestore(scratch, scratch_pos);
 }
 
+typedef struct
+{
+  int i;
+  int sz;
+  const LkUnicodeData* ud;
+  const u32* codepoints;
+  BidiUnit* o_units;
+} ComputeBidiUnitData;
+
+static void ComputeBidiUnitJob(void* data)
+{
+  ComputeBidiUnitData* cdata = data;
+  for (int i = cdata->i; i < cdata->i + cdata->sz; i++)
+  {
+    cdata->o_units[i] = BidiUnitCreate(cdata->codepoints[i], cdata->ud);
+  }
+}
+
 void lkComputeBidiUnits(
     LkContext* ctx,
     LkArena* arena,
@@ -1130,8 +1149,28 @@ void lkComputeBidiUnits(
   assert(o_units != NULL && *o_units == NULL);
 
   *o_units = APushArray(arena, BidiUnit, len_codepoints);
-  for (i32 i = 0; i < len_codepoints; i++)
-    (*o_units)[i] = BidiUnitCreate(codepoints[i], ctx->ud);
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+  i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
+  if (work_chunk < 16384) work_chunk = 16384;
+  i32 num_chunks = (len_codepoints / work_chunk) + (len_codepoints % work_chunk > 0);
+  ComputeBidiUnitData* job_data = APushArray(scratch, ComputeBidiUnitData, num_chunks);
+  int chunk_i = 0;
+  for (i32 i = 0; i < len_codepoints; i += work_chunk)
+  {
+    job_data[chunk_i].i = i;
+    job_data[chunk_i].sz = (i + work_chunk > len_codepoints) ? (len_codepoints - i) : work_chunk;
+    job_data[chunk_i].ud = ctx->ud;
+    job_data[chunk_i].codepoints = codepoints;
+    job_data[chunk_i].o_units = *o_units;
+    LkJob job;
+    job.func = ComputeBidiUnitJob;
+    job.data = &job_data[chunk_i];
+    chunk_i++;
+    lkJobQueuePush(ctx->queue, job);
+  }
+  lkJobQueueWait(ctx->queue);
+  lkArenaRestore(scratch, scratch_pos);
 }
 
 void lkSplitParagraphs(

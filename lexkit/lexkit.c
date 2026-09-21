@@ -13,16 +13,18 @@
 #define UNICODE_REPLACEMENT_CHARACTER 0xFFFD
 #define GRAPHEME_BREAK_COUNT 16
 
-void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx)
+void lkCreateContext(const LkUnicodeData* ud, int num_workers, LkAllocator* alloc, LkContext* o_ctx)
 {
   assert(o_ctx != NULL && ud != NULL);
   o_ctx->ud = ud;
   o_ctx->alloc = (alloc) ? alloc : lkAllocatorDefault();
   o_ctx->scratch = lkArenaCreateFrom(o_ctx->alloc);
+  o_ctx->queue = lkJobQueueCreate(alloc, num_workers);
 }
 
 void lkDestroyContext(LkContext* ctx)
 {
+  lkJobQueueDestroy(ctx->queue);
   lkArenaDestroy(ctx->scratch);
   ctx->scratch = NULL;
 }

@@ -30,7 +30,7 @@ int main() {
   int font_size = 72;
 
   LkContext ctx;
-  lkCreateContext(&g_lk_unicode_data, NULL, &ctx);
+  lkCreateContext(&g_lk_unicode_data, 8, NULL, &ctx);
 
   LkFont font;
   lkCreateFont(&ctx, font_path, font_size, &font);

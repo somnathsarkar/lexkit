@@ -6,15 +6,17 @@
 #include <lexkit/break.h>
 #include <lexkit/bidi.h>
 #include <lexkit/sizes.h>
+#include <lexkit/job.h>
 
 struct LkContext
 {
   const LkUnicodeData* ud;
   LkAllocator* alloc;
   LkArena* scratch;
+  LkJobQueue* queue;
 };
 
-void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx);
+void lkCreateContext(const LkUnicodeData* ud, int num_workers, LkAllocator* alloc, LkContext* o_ctx);
 void lkDestroyContext(LkContext* ctx);
 
 typedef struct
