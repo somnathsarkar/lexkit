@@ -301,7 +301,9 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
   ts = timestamp();
 #endif
   o_text->glyphs = NULL;
-  lkShapeText(o_text->arena, font, o_text, o_text->level_run_count, o_text->level_runs, &o_text->glyphs);
+  o_text->glyph_start = NULL;
+  o_text->glyph_count = 0;
+  lkShapeText(o_text->arena, font, o_text, o_text->level_run_count, o_text->level_runs, &o_text->glyphs, &o_text->glyph_start, &o_text->glyph_count);
 #if MEASURE_PERF
   printf("lkShapeText: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
   ts = timestamp();
@@ -322,6 +324,8 @@ void lkDestroyText(LkContext* ctx, LkText* text)
   text->levels = NULL;
   text->level_runs = NULL;
   text->glyphs = NULL;
+  text->glyph_start = NULL;
+  text->glyph_count = 0;
   text->breaks = NULL;
   text->codepoint_count = 0;
   text->para_count = 0;
@@ -333,22 +337,23 @@ float MaxF32(float a, float b)
   return (a < b) ? b : a;
 }
 
-// TODO: Linked list rework
-
-struct LkLineTmp
+static void PushLine(LkArena* arena, LkLine** io_lines, i32* io_line_count, LkLine line)
 {
-  LkLine line;
-  struct LkLineTmp* next;
-};
-
-typedef struct LkLineTmp LkLineTmp;
+  LkLine* new_line = APush(arena, LkLine);
+  if (*io_lines == NULL)
+    *io_lines = new_line;
+  assert(new_line == *io_lines + *io_line_count);
+  *new_line = line;
+  (*io_line_count)++;
+}
 
 LkLine* lkSplitLines(
     LkContext* ctx,
     LkArena* arena,
     LkFont* font,
     LkText* text,
-    LkGlyph** glyphs,
+    const LkGlyph* glyphs,
+    const u32* glyph_start,
     i32 para_count,
     LkParagraph* paras,
     i32 w,
@@ -358,10 +363,7 @@ LkLine* lkSplitLines(
   assert(o_line_count != NULL);
   assert(*o_line_count == -1);
 
-  LkArena* scratch = arena->alt;
-  u64 scratch_pos = scratch->pos;
-  LkLineTmp* o_line_tmp = NULL;
-  LkLineTmp** new_line = &o_line_tmp;
+  LkLine* o_lines = NULL;
 
   *o_line_count = 0;
 
@@ -370,9 +372,9 @@ LkLine* lkSplitLines(
   float cursor_y = 0.0f;
   int vdc = 0;
 
-  LkParagraph* para_focus = paras;
   for (i32 para_i = 0; para_i < para_count; para_i++)
   {
+    const LkParagraph* para_focus = &paras[para_i];
     float cursor_x = 0.0f;
     float cursor_x_before_last_line_break_i = 0.0f;
     int codepoint_i = para_focus->para_start_i;
@@ -401,8 +403,9 @@ LkLine* lkSplitLines(
         BreakerResult res = breaks[codepoint_i];
 
         i32 glyphs_per_codepoint = 0;
-        LkGlyph* codepoint_glyph_p = glyphs[codepoint_i];
-        while (codepoint_glyph_p != NULL && !codepoint_glyph_p->ignore)
+        const LkGlyph* codepoint_glyph_p = glyphs + glyph_start[codepoint_i];
+        const LkGlyph* codepoint_glyph_end = glyphs + glyph_start[codepoint_i + 1];
+        while (codepoint_glyph_p < codepoint_glyph_end && !codepoint_glyph_p->ignore)
         {
           float bitmap_left = font->glyphs[codepoint_glyph_p->glyph_index].bitmap_left;
           float bitmap_width = font->glyphs[codepoint_glyph_p->glyph_index].bitmap_width;
@@ -410,7 +413,7 @@ LkLine* lkSplitLines(
           max_word_x_offset = MaxF32(codepoint_glyph_p->x_offset, max_word_x_offset);
           max_word_width = MaxF32(bitmap_width + bitmap_left, max_word_width);
           glyphs_per_codepoint++;
-          codepoint_glyph_p = codepoint_glyph_p->next;
+          codepoint_glyph_p++;
         }
         
         if (res.gbrk == GBRK_BRK &&
@@ -449,10 +452,9 @@ LkLine* lkSplitLines(
           if (grapheme_breaks[i] + 1 < word_end_i &&
               (cursor_x + grapheme_advances[i] + font->hyphen_advance_x) / 64.0 < w)
           {
-            LkGlyph* focus_glyph = glyphs[grapheme_breaks[i]];
-            while (focus_glyph != NULL && focus_glyph->next != NULL)
-              focus_glyph = focus_glyph->next;
-            if (focus_glyph == NULL) continue;
+            if (glyph_start[grapheme_breaks[i]] == glyph_start[grapheme_breaks[i] + 1])
+              continue;
+            const LkGlyph* focus_glyph = glyphs + glyph_start[grapheme_breaks[i] + 1] - 1;
             LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
             if (!aglyph.canuse_hyphen) continue;
             found_grapheme_break = true;
@@ -466,11 +468,7 @@ LkLine* lkSplitLines(
       if (must_line_break_before_word || (!found_grapheme_break &&
           exceeds_line && last_line_break_valid))
       {
-        *new_line = APush(scratch, LkLineTmp);
-        (*new_line)->line = (LkLine){line_start_i, last_line_break_i, para_focus->para_level, cursor_x_before_last_line_break_i, false};
-        (*new_line)->next = NULL;
-        new_line = &((*new_line)->next);
-        (*o_line_count)++;
+        PushLine(arena, &o_lines, o_line_count, (LkLine){line_start_i, last_line_break_i, para_focus->para_level, cursor_x_before_last_line_break_i, false});
         last_line_break_valid = false;
         line_start_i = last_line_break_i;
         cursor_x = MaxF32(0.0f, cursor_x - cursor_x_before_last_line_break_i);
@@ -500,15 +498,16 @@ LkLine* lkSplitLines(
 
       for (i32 codepoint_j = word_start_i; codepoint_j < word_end_i; codepoint_j++)
       {
-        LkGlyph* focus_glyph = glyphs[codepoint_j];
-        while (focus_glyph != NULL && focus_glyph->next != NULL && !focus_glyph->ignore)
+        const LkGlyph* focus_glyph = glyphs + glyph_start[codepoint_j];
+        const LkGlyph* focus_glyph_end = glyphs + glyph_start[codepoint_j + 1];
+        while (focus_glyph < focus_glyph_end && focus_glyph + 1 < focus_glyph_end && !focus_glyph->ignore)
         {
           cursor_x += focus_glyph->x_advance;
           if (codepoint_j < last_line_break_i)
             cursor_x_before_last_line_break_i += focus_glyph->x_advance;
-          focus_glyph = focus_glyph->next;
+          focus_glyph++;
         }
-        if (focus_glyph == NULL) continue;
+        if (focus_glyph >= focus_glyph_end) continue;
         if (focus_glyph->ignore) continue;
         LkFontAtlasGlyph aglyph = font->glyphs[focus_glyph->glyph_index];
         float cursor_x_advance = (found_grapheme_break &&
@@ -520,11 +519,7 @@ LkLine* lkSplitLines(
           cursor_x_before_last_line_break_i += cursor_x_advance;
         if (found_grapheme_break && grapheme_i == codepoint_j)
         {
-          *new_line = APush(scratch, LkLineTmp);
-          (*new_line)->line = (LkLine){line_start_i, grapheme_i + 1, para_focus->para_level, cursor_x, true};
-          (*new_line)->next = NULL;
-          new_line = &((*new_line)->next);
-          (*o_line_count)++;
+          PushLine(arena, &o_lines, o_line_count, (LkLine){line_start_i, grapheme_i + 1, para_focus->para_level, cursor_x, true});
           line_start_i = grapheme_i + 1;
           line_end_i = word_end_i;
           last_line_break_valid = false;
@@ -535,23 +530,12 @@ LkLine* lkSplitLines(
         }
       }
     }
-    *new_line = APush(scratch, LkLineTmp);
-    (*new_line)->line = (LkLine){line_start_i, line_end_i, para_focus->para_level, cursor_x, false};
-    (*new_line)->next = NULL;
-    new_line = &((*new_line)->next);
-    (*o_line_count)++;
+    PushLine(arena, &o_lines, o_line_count, (LkLine){line_start_i, line_end_i, para_focus->para_level, cursor_x, false});
     last_line_break_valid = false;
-    para_focus = para_focus->next;
   }
 
-  LkLine* o_lines = APushArray(arena, LkLine, *o_line_count);
-  LkLineTmp* line_tmp_focus = o_line_tmp;
-  for (i32 i = 0; i < *o_line_count; i++)
-  {
-    o_lines[i] = line_tmp_focus->line;
-    line_tmp_focus = line_tmp_focus->next;
-  }
-  lkArenaRestore(scratch, scratch_pos);
+  if (o_lines == NULL)
+    o_lines = APushArray(arena, LkLine, 0);
   return o_lines;
 }
 
@@ -566,11 +550,18 @@ void lkShapeText(
     LkText* text,
     i32 lrun_count,
     LkLevelRun* lruns,
-    LkGlyph*** o_glyphs)
+    LkGlyph** o_glyphs,
+    u32** o_glyph_start,
+    u32* o_glyph_count)
 {
-  assert(o_glyphs != NULL);
-  assert(*o_glyphs == NULL);
-  *o_glyphs = APushArray(arena, LkGlyph*, text->codepoint_count);
+  assert(o_glyphs != NULL && o_glyph_start != NULL && o_glyph_count != NULL);
+  assert(*o_glyphs == NULL && *o_glyph_start == NULL);
+
+  u32* glyph_start = APushArray(arena, u32, (u64)text->codepoint_count + 1);
+  LkGlyph* glyphs = NULL;
+  u32 glyph_total = 0;
+  i32 next_codepoint_i = 0;
+
   for (i32 lrun_i = 0; lrun_i < lrun_count; lrun_i++)
   {
     LkLevelRun lrun = lruns[lrun_i];
@@ -596,60 +587,49 @@ void lkShapeText(
     u32 glyph_count = 0;
     hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
     hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
-    if (lrun.level % 2 == 1)
+
+    LkGlyph* run_glyphs = APushArray(arena, LkGlyph, glyph_count);
+    if (glyphs == NULL)
+      glyphs = run_glyphs;
+    assert(run_glyphs == glyphs + glyph_total);
+
+    assert(lrun.start_i >= next_codepoint_i);
+    for (i32 i = next_codepoint_i; i <= lrun.start_i; i++)
+      glyph_start[i] = glyph_total;
+    for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
+      glyph_start[i + 1] = 0;
+    for (u32 gi = 0; gi < glyph_count; gi++)
+      glyph_start[glyph_info[gi].cluster + 1]++;
+    for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
+      glyph_start[i + 1] += glyph_start[i];
+
+    u64 scratch_pos = lkArenaGetPos(arena->alt);
+    u32* cluster_fill = APushArray(arena->alt, u32, (u64)(lrun.end_i - lrun.start_i + 1));
+    for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
+      cluster_fill[i - lrun.start_i] = glyph_start[i];
+    for (u32 gi = 0; gi < glyph_count; gi++)
     {
-      i32 gi = 0;
-      for (i32 i = lrun.end_i; i >= lrun.start_i; i--)
-      {
-        LkGlyph** focus = &(*o_glyphs)[i];
-        while(gi >= 0 && glyph_info[gi].cluster == i)
-        {
-          LkGlyph* new_glyph = APush(arena, LkGlyph);
-          new_glyph->glyph_index = glyph_info[gi].codepoint;
-          new_glyph->x_advance = glyph_pos[gi].x_advance;
-          new_glyph->ignore = false;
-          if (IgnoreCodepointDuringShaping(text->codepoints[glyph_info[gi].cluster]))
-          {
-            new_glyph->ignore = true;
-          }
-          new_glyph->y_advance = glyph_pos[gi].y_advance;
-          new_glyph->x_offset = glyph_pos[gi].x_offset;
-          new_glyph->y_offset = glyph_pos[gi].y_offset;
-          new_glyph->next = NULL;
-          *focus = new_glyph;
-          focus = &((*focus)->next);
-          gi++;
-        }
-      }
-      assert(gi >= glyph_count);
+      u32 cluster = glyph_info[gi].cluster;
+      LkGlyph* new_glyph = &glyphs[cluster_fill[cluster - lrun.start_i]++];
+      new_glyph->glyph_index = glyph_info[gi].codepoint;
+      new_glyph->x_advance = glyph_pos[gi].x_advance;
+      new_glyph->y_advance = glyph_pos[gi].y_advance;
+      new_glyph->x_offset = glyph_pos[gi].x_offset;
+      new_glyph->y_offset = glyph_pos[gi].y_offset;
+      new_glyph->ignore = IgnoreCodepointDuringShaping(text->codepoints[cluster]);
     }
-    else {
-      i32 gi = 0;
-      for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
-      {
-        LkGlyph** focus = &(*o_glyphs)[i];
-        while(gi < glyph_count && glyph_info[gi].cluster == i)
-        {
-          LkGlyph* new_glyph = APush(arena, LkGlyph);
-          new_glyph->glyph_index = glyph_info[gi].codepoint;
-          new_glyph->x_advance = glyph_pos[gi].x_advance;
-          new_glyph->ignore = false;
-          if (IgnoreCodepointDuringShaping(text->codepoints[glyph_info[gi].cluster]))
-          {
-            new_glyph->ignore = true;
-          }
-          new_glyph->y_advance = glyph_pos[gi].y_advance;
-          new_glyph->x_offset = glyph_pos[gi].x_offset;
-          new_glyph->y_offset = glyph_pos[gi].y_offset;
-          new_glyph->next = NULL;
-          *focus = new_glyph;
-          focus = &((*focus)->next);
-          gi++;
-        }
-      }
-      assert(gi >= glyph_count);
-    }
+    lkArenaRestore(arena->alt, scratch_pos);
+    glyph_total += glyph_count;
+    next_codepoint_i = lrun.end_i + 1;
+    hb_buffer_destroy(buf);
   }
+
+  for (u64 i = (u64)next_codepoint_i; i <= text->codepoint_count; i++)
+    glyph_start[i] = glyph_total;
+
+  *o_glyphs = glyphs;
+  *o_glyph_start = glyph_start;
+  *o_glyph_count = glyph_total;
 }
 
 static bool IsL1Class(BIDIC bidic)
@@ -784,12 +764,13 @@ void lkLayoutText(
   static bool first_layout = false;
   int64_t ts_start = timestamp();
 #endif
-  LkLine* lines = lkSplitLines(ctx, ctx->scratch, font, text, text->glyphs, text->para_count, text->paragraphs, w, h, &line_count);
+  LkLine* lines = lkSplitLines(ctx, ctx->scratch, font, text, text->glyphs, text->glyph_start, text->para_count, text->paragraphs, w, h, &line_count);
 #if MEASURE_PERF
   int64_t ts_split = timestamp();
 #endif
   i32* levels = text->levels;
-  LkGlyph** glyphs = text->glyphs;
+  const LkGlyph* glyphs = text->glyphs;
+  const u32* glyph_start = text->glyph_start;
   const BidiUnit* units = text->units;
   LkArena* scratch = ctx->scratch->alt;
   i32 vdc = 0;
@@ -842,8 +823,9 @@ void lkLayoutText(
     for (i32 codepoint_order_i = 0; codepoint_order_i < line_codepoint_count; codepoint_order_i++)
     {
       i32 codepoint_i = codepoint_orders[codepoint_order_i];
-      LkGlyph* focus_glyph = glyphs[codepoint_i];
-      while (focus_glyph != NULL && !focus_glyph->ignore)
+      const LkGlyph* focus_glyph = glyphs + glyph_start[codepoint_i];
+      const LkGlyph* focus_glyph_end = glyphs + glyph_start[codepoint_i + 1];
+      while (focus_glyph < focus_glyph_end && !focus_glyph->ignore)
       {
         aglyph = font->glyphs[focus_glyph->glyph_index];
         LkVertexDescriptor_Text v = {
@@ -865,10 +847,10 @@ void lkLayoutText(
         o_vd[vdc++] = v;
         cursor_x += (lines[line_i].hyphen_end &&
                       codepoint_i + 1 >= lines[line_i].end_i &&
-                      focus_glyph->next == NULL) ?
+                      focus_glyph + 1 == focus_glyph_end) ?
                       aglyph.x_advance_hyphen :
                       focus_glyph->x_advance;
-        focus_glyph = focus_glyph->next;
+        focus_glyph++;
       }
     }
     if (lines[line_i].hyphen_end)

@@ -1149,9 +1149,17 @@ void lkSplitParagraphs(
   LkArena* scratch = arena->alt;
   u64 scratch_pos = scratch->pos;
 
+  i32 para_count = 0;
+  for (i32 i = 0; i < len_codepoints; i++)
+  {
+    if (units[i].bidic == BIDIC_B)
+      para_count++;
+  }
+  if (len_codepoints > 0 && units[len_codepoints - 1].bidic != BIDIC_B)
+    para_count++;
+
   *o_paragraph_count = 0;
-  *o_paragraphs = NULL;
-  LkParagraph* para_focus = NULL;
+  *o_paragraphs = APushArray(arena, LkParagraph, para_count);
 
   i32 para_start_i = 0;
   bool para_level_found = false;
@@ -1186,18 +1194,7 @@ void lkSplitParagraphs(
     }
     else if (unit.bidic == BIDIC_B)
     {
-      if (*o_paragraphs == NULL)
-      {
-        *o_paragraphs = APush(arena, LkParagraph);
-        para_focus = *o_paragraphs;
-      }
-      else
-      {
-        para_focus->next = APush(arena, LkParagraph);
-        para_focus = para_focus->next;
-      }
-      *para_focus = (LkParagraph) { para_start_i, i, para_level, NULL };
-      (*o_paragraph_count)++;
+      (*o_paragraphs)[(*o_paragraph_count)++] = (LkParagraph) { para_start_i, i, para_level };
       para_start_i = i + 1;
       para_level_found = false;
       para_level = 0;
@@ -1206,18 +1203,7 @@ void lkSplitParagraphs(
   }
   if (len_codepoints > 0 && para_start_i < len_codepoints)
   {
-    if (*o_paragraphs == NULL)
-    {
-      *o_paragraphs = APush(arena, LkParagraph);
-      para_focus = *o_paragraphs;
-    }
-    else
-    {
-      para_focus->next = APush(arena, LkParagraph);
-      para_focus = para_focus->next;
-    }
-    *para_focus = (LkParagraph) { para_start_i, len_codepoints - 1, para_level, NULL };
-    (*o_paragraph_count)++;
+    (*o_paragraphs)[(*o_paragraph_count)++] = (LkParagraph) { para_start_i, len_codepoints - 1, para_level };
   }
 
   lkArenaRestore(scratch, scratch_pos);
@@ -1240,15 +1226,6 @@ static bool IsPlainLtrParagraph(
     seen |= 1u << units[i].bidic;
   return (seen & ~plain_mask) == 0;
 }
-
-struct LkLevelRunNode
-{
-  i32 lrun_count;
-  LkLevelRun* lrun;
-  struct LkLevelRunNode* next;
-};
-
-typedef struct LkLevelRunNode LkLevelRunNode;
 
 void lkSplitBidiRuns(
     LkContext* ctx,
@@ -1273,11 +1250,9 @@ void lkSplitBidiRuns(
 
   *o_levels = APushArray(arena, i32, len_codepoints);
   i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
-  LkLevelRunNode* lrun_list_tail = NULL;
-  LkLevelRunNode* lrun_list_head = NULL;
-  LkParagraph* para_focus = paragraphs;
   for (i32 para_i = 0; para_i < paragraph_count; para_i++)
   {
+      const LkParagraph* para_focus = &paragraphs[para_i];
       i32 para_level_run_count = -1;
       LkLevelRun* para_level_runs = NULL;
 
@@ -1290,7 +1265,7 @@ void lkSplitBidiRuns(
           if (units[i].bidic != BIDIC_B || para_focus->para_start_i == para_focus->para_end_i)
             units[i].bidic = BIDIC_L;
         }
-        para_level_runs = APush(scratch, LkLevelRun);
+        para_level_runs = APush(arena, LkLevelRun);
         *para_level_runs = (LkLevelRun) {
           para_focus->para_start_i, para_focus->para_end_i,
           para_focus->para_start_i, para_focus->para_end_i, 0 };
@@ -1309,7 +1284,7 @@ void lkSplitBidiRuns(
             matching_isolate);
 
         LevelRunSplit(
-            scratch,
+            arena,
             *o_levels,
             para_focus->para_start_i,
             para_focus->para_end_i,
@@ -1318,41 +1293,14 @@ void lkSplitBidiRuns(
             &para_level_runs);
       }
 
-      LkLevelRunNode* lrun_focus = NULL;
-      if (lrun_list_tail == NULL)
-      {
-        lrun_list_tail = APush(scratch, LkLevelRunNode);
-        lrun_list_head = lrun_list_tail;
-        lrun_focus = lrun_list_tail;
-      }
-      else
-      {
-        lrun_list_tail->next = APush(scratch, LkLevelRunNode);
-        lrun_focus = lrun_list_tail->next;
-        lrun_list_tail = lrun_list_tail->next;
-      }
-      lrun_focus->lrun = para_level_runs;
-      lrun_focus->lrun_count = para_level_run_count;
-      lrun_focus->next = NULL;
-
-      *o_level_run_count += para_level_run_count; 
-
-      para_focus = para_focus->next;
+      if (*o_level_runs == NULL)
+        *o_level_runs = para_level_runs;
+      assert(para_level_runs == *o_level_runs + *o_level_run_count);
+      *o_level_run_count += para_level_run_count;
   }
 
-  *o_level_runs = APushArray(arena, LkLevelRun, *o_level_run_count);
-
-  LkLevelRunNode* lrun_focus = lrun_list_head;
-  i32 lrun_total = 0;
-  while (lrun_focus != NULL)
-  {
-    for (i32 lrun_i = 0; lrun_i < lrun_focus->lrun_count; lrun_i++)
-    {
-      (*o_level_runs)[lrun_total + lrun_i] = lrun_focus->lrun[lrun_i];
-    }
-    lrun_total += lrun_focus->lrun_count;
-    lrun_focus = lrun_focus->next;
-  }
+  if (*o_level_runs == NULL)
+    *o_level_runs = APushArray(arena, LkLevelRun, 0);
 
   lkArenaRestore(scratch, scratch_pos);
 }

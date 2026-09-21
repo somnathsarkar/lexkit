@@ -68,8 +68,6 @@ struct LkGlyph
   i32 x_offset;
   i32 y_offset;
   bool ignore;        // Whether to skip past this glyph, ie LF. All are true/false for any codepoint. 
-
-  struct LkGlyph* next;
 };
 
 typedef struct LkGlyph LkGlyph;
@@ -84,7 +82,9 @@ struct LkText
   i32* levels;
   i32 level_run_count;
   LkLevelRun* level_runs;
-  LkGlyph** glyphs;
+  LkGlyph* glyphs;
+  u32* glyph_start;
+  u32 glyph_count;
   BreakerResult* breaks;
   LkArena* arena;
 };
@@ -121,13 +121,16 @@ void lkShapeText(
     LkText* text,
     i32 lrun_count,
     LkLevelRun* lruns,
-    LkGlyph*** o_glyphs);
+    LkGlyph** o_glyphs,
+    u32** o_glyph_start,
+    u32* o_glyph_count);
 LkLine* lkSplitLines(
     LkContext* ctx,
     LkArena* arena,
     LkFont* font,
     LkText* text,
-    LkGlyph** glyphs,
+    const LkGlyph* glyphs,
+    const u32* glyph_start,
     i32 para_count,
     LkParagraph* paras,
     i32 w,

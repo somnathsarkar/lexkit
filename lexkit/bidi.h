@@ -21,7 +21,6 @@ struct LkParagraph
   i32 para_start_i;
   i32 para_end_i;
   i32 para_level;
-  struct LkParagraph* next;
 };
 
 typedef struct LkParagraph LkParagraph;
