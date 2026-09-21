@@ -118,6 +118,7 @@ void lkLayoutText(
     LkVertexDescriptor_Text* o_vd,
     i32* o_vd_count);
 void lkShapeText(
+    LkContext* ctx,
     LkArena* arena,
     LkFont* font,
     LkText* text,
