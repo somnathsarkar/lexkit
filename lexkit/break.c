@@ -1,5 +1,6 @@
 #include <lexkit/break.h>
 #include <lexkit/lexkit.h>
+#include <lexkit/job.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,8 @@
 #include <assert.h>
 
 #include <immintrin.h>
+
+#define UNICODE_CODEPOINT_LF 0x000A
 
 const char* g_map_gc_str[] = {
   "Lu",      // GC_Lu
@@ -403,12 +406,12 @@ static void GetGlyphAtIndexAvx2(const u32* codepoints, i32 len_codepoints, i32 i
 
 #endif
 
-void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, const LkUnicodeData* ud, Breaker* o_brk)
+static void BreakerInit(const u32* codepoints, i32 len_codepoints, Glyph* glyphs, const LkUnicodeData* ud, Breaker* o_brk)
 {
   o_brk->codepoints = codepoints;
   o_brk->len_codepoints = len_codepoints;
   o_brk->idx = -1;
-  o_brk->glyphs = APushArray(arena, Glyph, len_codepoints);
+  o_brk->glyphs = glyphs;
 #ifdef __AVX2__
   for (int i = 0; i < len_codepoints; i += 4)
   {
@@ -420,6 +423,11 @@ void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, co
     o_brk->glyphs[i] = GetGlyphAtIndex(codepoints, len_codepoints, i, ud);
   }
 #endif
+}
+
+void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, const LkUnicodeData* ud, Breaker* o_brk)
+{
+  BreakerInit(codepoints, len_codepoints, APushArray(arena, Glyph, len_codepoints), ud, o_brk);
 }
 
 static void BreakerGetNextGlyphLineBreak(Breaker* brk, const LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
@@ -769,9 +777,19 @@ static LBRK BreakerComputeLbrk(Breaker* brk, const LkUnicodeData* ud)
     }
   }
 
+  bool is_word_initial_hy = false;
+  if (brk->lbcx_adj == LBCX_20a)
+  {
+    i32 base_i = brk->idx;
+    while (base_i > 0 && (brk->glyphs[base_i].lbc == LBC_CM || brk->glyphs[base_i].lbc == LBC_ZWJ))
+      base_i--;
+    is_word_initial_hy = (brk->glyphs[base_i].lbc == LBC_HY);
+  }
+
   if ((brk->lbcx_adj == LBCX_PO ||
         brk->lbcx_adj == LBCX_PR ||
         brk->lbcx_adj == LBCX_HY ||
+        is_word_initial_hy ||
         brk->lbcx_adj == LBCX_IS) &&
       g.lbc == LBC_NU)
     return LBRK_PRO;
@@ -933,9 +951,9 @@ static void BreakerGetNextGlyphWordBreak(Breaker* brk, const LkUnicodeData* ud, 
   {
     (*io_idx_next)++;
     (*o_g) = brk->glyphs[*io_idx_next];
-    if (o_g->wbc != WBC_CR &&
-        o_g->wbc != WBC_LF &&
-        o_g->wbc != WBC_Newline)
+    if (o_g->wbc != WBC_Extend &&
+        o_g->wbc != WBC_Format &&
+        o_g->wbc != WBC_ZWJ)
     {
       *io_next = true;
       break;
@@ -1331,7 +1349,7 @@ BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
       brk->lbcx_adj = LBCX_19a;
     }
 
-    if (g.lbc == LBC_HY && g.codepoint == 0x2010)
+    if (g.lbc == LBC_HY || g.codepoint == 0x2010)
     {
       brk->lbcx = LBCX_20a;
       brk->lbcx_adj = LBCX_20a;
@@ -1610,16 +1628,70 @@ BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
   return res;
 }
 
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, const LkUnicodeData* ud)
+typedef struct
 {
-  u64 arena_pos = lkArenaGetPos(arena->alt);
-  BreakerResult* breaks = APushArray(arena, BreakerResult, text->codepoint_count);
+  const u32* codepoints;
+  Glyph* glyphs;
+  BreakerResult* o_breaks;
+  const LkUnicodeData* ud;
+  i32 start_i;
+  i32 len;
+} GetBreaksData;
+
+static void GetBreaksJob(void* data)
+{
+  GetBreaksData* bdata = data;
   Breaker brk = {0};
-  BreakerCreate(arena->alt, text->codepoints, text->codepoint_count, ud, &brk);
-  for (i32 i = 0; i < text->codepoint_count; i++)
+  BreakerInit(bdata->codepoints + bdata->start_i, bdata->len, bdata->glyphs + bdata->start_i, bdata->ud, &brk);
+  for (i32 i = 0; i < bdata->len; i++)
   {
-    breaks[i] = BreakerAdvance(&brk, ud);
+    BreakerResult res = BreakerAdvance(&brk, bdata->ud);
+    res.glyph_idx += bdata->start_i;
+    bdata->o_breaks[bdata->start_i + i] = res;
   }
-  lkArenaRestore(arena->alt, arena_pos);
+}
+
+BreakerResult* lkGetBreaks(LkContext* ctx, LkArena* arena, const struct LkText* text)
+{
+  // Breaker maintains internal state for Line, Word and Grapheme break tracking,
+  //  but this state always resets at an LF. So we split up jobs among workers
+  //  using chunks of size at least work_chunk, advanced to the nearest LF.
+
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = lkArenaGetPos(scratch);
+  i32 len_codepoints = (i32)text->codepoint_count;
+  BreakerResult* breaks = APushArray(arena, BreakerResult, len_codepoints);
+  Glyph* glyphs = APushArray(scratch, Glyph, len_codepoints);
+
+  i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
+  if (work_chunk < 16384) work_chunk = 16384;
+  i32 max_chunks = (len_codepoints + work_chunk - 1) / work_chunk;
+  GetBreaksData* job_data = APushArray(scratch, GetBreaksData, max_chunks);
+
+  i32 chunk_i = 0;
+  i32 start_i = 0;
+  while (start_i < len_codepoints)
+  {
+    i32 end_i = start_i + work_chunk;
+    while (end_i < len_codepoints && text->codepoints[end_i - 1] != UNICODE_CODEPOINT_LF)
+      end_i++;
+    if (end_i > len_codepoints)
+      end_i = len_codepoints;
+
+    job_data[chunk_i].codepoints = text->codepoints;
+    job_data[chunk_i].glyphs = glyphs;
+    job_data[chunk_i].o_breaks = breaks;
+    job_data[chunk_i].ud = ctx->ud;
+    job_data[chunk_i].start_i = start_i;
+    job_data[chunk_i].len = end_i - start_i;
+    LkJob job;
+    job.func = GetBreaksJob;
+    job.data = &job_data[chunk_i];
+    chunk_i++;
+    lkJobQueuePush(ctx->queue, job);
+    start_i = end_i;
+  }
+  lkJobQueueWait(ctx->queue);
+  lkArenaRestore(scratch, scratch_pos);
   return breaks;
 }

@@ -310,7 +310,7 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
   printf("lkShapeText: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
   ts = timestamp();
 #endif
-  o_text->breaks = lkGetBreaks(o_text->arena, o_text, ctx->ud);
+  o_text->breaks = lkGetBreaks(ctx, o_text->arena, o_text);
 #if MEASURE_PERF
   printf("lkGetBreaks: %g ms\n", (timestamp() - ts) * 1000.0 / timestamp_res());
 #endif
