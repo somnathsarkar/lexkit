@@ -337,15 +337,15 @@ float MaxF32(float a, float b)
   return (a < b) ? b : a;
 }
 
-// TODO: Linked list rework
-
-struct LkLineTmp
+static void PushLine(LkArena* arena, LkLine** io_lines, i32* io_line_count, LkLine line)
 {
-  LkLine line;
-  struct LkLineTmp* next;
-};
-
-typedef struct LkLineTmp LkLineTmp;
+  LkLine* new_line = APush(arena, LkLine);
+  if (*io_lines == NULL)
+    *io_lines = new_line;
+  assert(new_line == *io_lines + *io_line_count);
+  *new_line = line;
+  (*io_line_count)++;
+}
 
 LkLine* lkSplitLines(
     LkContext* ctx,
@@ -363,10 +363,7 @@ LkLine* lkSplitLines(
   assert(o_line_count != NULL);
   assert(*o_line_count == -1);
 
-  LkArena* scratch = arena->alt;
-  u64 scratch_pos = scratch->pos;
-  LkLineTmp* o_line_tmp = NULL;
-  LkLineTmp** new_line = &o_line_tmp;
+  LkLine* o_lines = NULL;
 
   *o_line_count = 0;
 
@@ -471,11 +468,7 @@ LkLine* lkSplitLines(
       if (must_line_break_before_word || (!found_grapheme_break &&
           exceeds_line && last_line_break_valid))
       {
-        *new_line = APush(scratch, LkLineTmp);
-        (*new_line)->line = (LkLine){line_start_i, last_line_break_i, para_focus->para_level, cursor_x_before_last_line_break_i, false};
-        (*new_line)->next = NULL;
-        new_line = &((*new_line)->next);
-        (*o_line_count)++;
+        PushLine(arena, &o_lines, o_line_count, (LkLine){line_start_i, last_line_break_i, para_focus->para_level, cursor_x_before_last_line_break_i, false});
         last_line_break_valid = false;
         line_start_i = last_line_break_i;
         cursor_x = MaxF32(0.0f, cursor_x - cursor_x_before_last_line_break_i);
@@ -526,11 +519,7 @@ LkLine* lkSplitLines(
           cursor_x_before_last_line_break_i += cursor_x_advance;
         if (found_grapheme_break && grapheme_i == codepoint_j)
         {
-          *new_line = APush(scratch, LkLineTmp);
-          (*new_line)->line = (LkLine){line_start_i, grapheme_i + 1, para_focus->para_level, cursor_x, true};
-          (*new_line)->next = NULL;
-          new_line = &((*new_line)->next);
-          (*o_line_count)++;
+          PushLine(arena, &o_lines, o_line_count, (LkLine){line_start_i, grapheme_i + 1, para_focus->para_level, cursor_x, true});
           line_start_i = grapheme_i + 1;
           line_end_i = word_end_i;
           last_line_break_valid = false;
@@ -541,22 +530,12 @@ LkLine* lkSplitLines(
         }
       }
     }
-    *new_line = APush(scratch, LkLineTmp);
-    (*new_line)->line = (LkLine){line_start_i, line_end_i, para_focus->para_level, cursor_x, false};
-    (*new_line)->next = NULL;
-    new_line = &((*new_line)->next);
-    (*o_line_count)++;
+    PushLine(arena, &o_lines, o_line_count, (LkLine){line_start_i, line_end_i, para_focus->para_level, cursor_x, false});
     last_line_break_valid = false;
   }
 
-  LkLine* o_lines = APushArray(arena, LkLine, *o_line_count);
-  LkLineTmp* line_tmp_focus = o_line_tmp;
-  for (i32 i = 0; i < *o_line_count; i++)
-  {
-    o_lines[i] = line_tmp_focus->line;
-    line_tmp_focus = line_tmp_focus->next;
-  }
-  lkArenaRestore(scratch, scratch_pos);
+  if (o_lines == NULL)
+    o_lines = APushArray(arena, LkLine, 0);
   return o_lines;
 }
 
