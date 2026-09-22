@@ -14,6 +14,7 @@ struct LkContext
   LkAllocator* alloc;
   LkArena* scratch;
   LkJobQueue* queue;
+  LkArena** worker_scratch;
 };
 
 void lkCreateContext(const LkUnicodeData* ud, int num_workers, LkAllocator* alloc, LkContext* o_ctx);

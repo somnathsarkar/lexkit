@@ -20,10 +20,17 @@ void lkCreateContext(const LkUnicodeData* ud, int num_workers, LkAllocator* allo
   o_ctx->alloc = (alloc) ? alloc : lkAllocatorDefault();
   o_ctx->scratch = lkArenaCreateFrom(o_ctx->alloc);
   o_ctx->queue = lkJobQueueCreate(alloc, num_workers);
+  o_ctx->worker_scratch = AAllocArray(o_ctx->alloc, LkArena*, o_ctx->queue->num_workers + 1);
+  for (int i = 0; i < o_ctx->queue->num_workers + 1; i++)
+    o_ctx->worker_scratch[i] = lkArenaCreateFrom(o_ctx->alloc);
 }
 
 void lkDestroyContext(LkContext* ctx)
 {
+  for (int i = 0; i < ctx->queue->num_workers + 1; i++)
+    lkArenaDestroy(ctx->worker_scratch[i]);
+  AFree(ctx->alloc, ctx->worker_scratch, LkArena*, ctx->queue->num_workers + 1);
+  ctx->worker_scratch = NULL;
   lkJobQueueDestroy(ctx->queue);
   lkArenaDestroy(ctx->scratch);
   ctx->scratch = NULL;
