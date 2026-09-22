@@ -556,6 +556,7 @@ bool IgnoreCodepointDuringShaping(u32 codepoint)
 
 typedef struct
 {
+  LkContext* ctx;
   LkFont* font;
   const LkText* text;
   const LkLevelRun* lruns;
@@ -564,28 +565,24 @@ typedef struct
   i32 codepoint_begin;
   i32 codepoint_end;
   LkGlyph* glyphs;
-  u32 glyph_capacity;
   u32 glyph_count;
   u32* local_start;
-  u32* cluster_fill;
-  bool overflow;
   LkGlyph* o_glyphs;
   u32* o_glyph_start;
   u32 glyph_offset;
 } ShapeJobData;
 
-// Shapes every run of the job into its local block data->glyphs.
-//  Store overflow if the local block was not big enough, glyph_count for later prefix sum.
-//  Uses cluster_fill as scratch space to store the next free glyph spot per codepoint.
+// Shapes every run of the job into its local arena
 static void ShapeJob(int worker_id, void* data)
 {
   ShapeJobData* sdata = data;
   const LkText* text = sdata->text;
-  u32* local_start = sdata->local_start;
+  LkArena* scratch = sdata->ctx->worker_scratch[worker_id + 1];
   i32 base_i = sdata->codepoint_begin;
+  u32* local_start = sdata->local_start;
   u32 glyph_total = 0;
   i32 next_codepoint_i = sdata->codepoint_begin;
-  sdata->overflow = false;
+  sdata->glyphs = NULL;
 
   hb_buffer_t* buf = hb_buffer_create();
   for (i32 lrun_i = sdata->lrun_begin; lrun_i < sdata->lrun_end; lrun_i++)
@@ -613,11 +610,10 @@ static void ShapeJob(int worker_id, void* data)
     hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
     hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
 
-    if (glyph_total + glyph_count > sdata->glyph_capacity)
-    {
-      sdata->overflow = true;
-      break;
-    }
+    LkGlyph* run_glyphs = APushArray(scratch, LkGlyph, glyph_count);
+    if (sdata->glyphs == NULL)
+      sdata->glyphs = run_glyphs;
+    assert(run_glyphs == sdata->glyphs + glyph_total);
 
     assert(lrun.start_i >= next_codepoint_i);
     for (i32 i = next_codepoint_i; i <= lrun.start_i; i++)
@@ -629,12 +625,14 @@ static void ShapeJob(int worker_id, void* data)
     for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
       local_start[i + 1 - base_i] += local_start[i - base_i];
 
+    u64 fill_pos = lkArenaGetPos(scratch);
+    u32* cluster_fill = APushArray(scratch, u32, (u64)(lrun.end_i - lrun.start_i + 1));
     for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
-      sdata->cluster_fill[i - lrun.start_i] = local_start[i - base_i];
+      cluster_fill[i - lrun.start_i] = local_start[i - base_i];
     for (u32 gi = 0; gi < glyph_count; gi++)
     {
       u32 cluster = glyph_info[gi].cluster;
-      LkGlyph* new_glyph = &sdata->glyphs[sdata->cluster_fill[cluster - lrun.start_i]++];
+      LkGlyph* new_glyph = &sdata->glyphs[cluster_fill[cluster - lrun.start_i]++];
       new_glyph->glyph_index = glyph_info[gi].codepoint;
       new_glyph->x_advance = glyph_pos[gi].x_advance;
       new_glyph->y_advance = glyph_pos[gi].y_advance;
@@ -642,6 +640,8 @@ static void ShapeJob(int worker_id, void* data)
       new_glyph->y_offset = glyph_pos[gi].y_offset;
       new_glyph->ignore = IgnoreCodepointDuringShaping(text->codepoints[cluster]);
     }
+    lkArenaRestore(scratch, fill_pos);
+
     glyph_total += glyph_count;
     next_codepoint_i = lrun.end_i + 1;
   }
@@ -680,8 +680,13 @@ void lkShapeText(
   LkArena* scratch = arena->alt;
   u64 scratch_pos = lkArenaGetPos(scratch);
 
+  i32 arena_count = ctx->queue->num_workers + 1;
+  u64* worker_pos = APushArray(scratch, u64, arena_count);
+  for (i32 i = 0; i < arena_count; i++)
+    worker_pos[i] = lkArenaGetPos(ctx->worker_scratch[i]);
+
   // Split the runs into chunks of roughly equal codepoint count
-  i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
+  i32 work_chunk = len_codepoints / (arena_count * 4);
   if (work_chunk < 16384) work_chunk = 16384;
   i32 max_jobs = len_codepoints / work_chunk + 1;
   ShapeJobData* job_data = APushArray(scratch, ShapeJobData, max_jobs);
@@ -693,30 +698,23 @@ void lkShapeText(
   {
     ShapeJobData* sdata = &job_data[job_count++];
     i32 job_codepoints = 0;
-    i32 longest_run = 0;
     sdata->lrun_begin = lrun_i;
     while (lrun_i < lrun_count && job_codepoints < work_chunk)
     {
-      i32 run_len = lruns[lrun_i].end_i - lruns[lrun_i].start_i + 1;
-      job_codepoints += run_len;
-      if (run_len > longest_run) longest_run = run_len;
+      job_codepoints += lruns[lrun_i].end_i - lruns[lrun_i].start_i + 1;
       lrun_i++;
     }
     sdata->lrun_end = lrun_i;
+    sdata->ctx = ctx;
     sdata->font = font;
     sdata->text = text;
     sdata->lruns = lruns;
     sdata->codepoint_begin = next_codepoint_i;
     sdata->codepoint_end = (lrun_i < lrun_count) ? lruns[lrun_i - 1].end_i : len_codepoints - 1;
     next_codepoint_i = sdata->codepoint_end + 1;
-
-    i32 job_range = sdata->codepoint_end - sdata->codepoint_begin + 1;
-    sdata->glyph_capacity = (u32)job_range + (u32)job_range / 8 + 64;
-    sdata->glyphs = APushArray(scratch, LkGlyph, sdata->glyph_capacity);
-    sdata->local_start = APushArray(scratch, u32, (u64)job_range + 1);
-    sdata->cluster_fill = APushArray(scratch, u32, (u64)longest_run);
+    sdata->local_start = APushArray(scratch, u32, (u64)(sdata->codepoint_end - sdata->codepoint_begin) + 2);
+    sdata->glyphs = NULL;
     sdata->glyph_count = 0;
-    sdata->overflow = false;
   }
 
   for (i32 job_i = 0; job_i < job_count; job_i++)
@@ -728,18 +726,6 @@ void lkShapeText(
   }
   lkJobQueueWait(ctx->queue);
 
-  // Redo any jobs that have overflowed to a expanded glyph array
-  for (i32 job_i = 0; job_i < job_count; job_i++)
-  {
-    while (job_data[job_i].overflow)
-    {
-      job_data[job_i].glyph_capacity *= 2;
-      job_data[job_i].glyphs = APushArray(scratch, LkGlyph, job_data[job_i].glyph_capacity);
-      ShapeJob(-1, &job_data[job_i]);
-    }
-  }
-
-  // Accumulate prefix sums
   u32 glyph_total = 0;
   for (i32 job_i = 0; job_i < job_count; job_i++)
   {
@@ -747,7 +733,6 @@ void lkShapeText(
     glyph_total += job_data[job_i].glyph_count;
   }
 
-  // Copy data from thread-local blocks to contiguous array
   LkGlyph* glyphs = APushArray(arena, LkGlyph, glyph_total);
   for (i32 job_i = 0; job_i < job_count; job_i++)
   {
@@ -759,6 +744,9 @@ void lkShapeText(
     lkJobQueuePush(ctx->queue, job);
   }
   lkJobQueueWait(ctx->queue);
+
+  for (i32 i = 0; i < arena_count; i++)
+    lkArenaRestore(ctx->worker_scratch[i], worker_pos[i]);
 
   for (i32 i = next_codepoint_i; i <= len_codepoints; i++)
     glyph_start[i] = glyph_total;
