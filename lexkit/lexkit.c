@@ -975,9 +975,6 @@ void lkLayoutText(
           aglyph.v_max
         };
 
-        // TODO: Rethink this. Need to stop outputting vds after we've exceeded height.
-        //  Probably at the lkSplitLines level.
-
         if (vdc + 1 >= max_vd)
           goto end;
         o_vd[vdc++] = v;
