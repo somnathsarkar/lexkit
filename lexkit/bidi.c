@@ -2,6 +2,7 @@
 #include <lexkit/alloc.h>
 #include <lexkit/bidi.h>
 #include <lexkit/break.h>
+#include <lexkit/job.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -1120,6 +1121,24 @@ static void lkSplitBidiRunsParagraph(
   lkArenaRestore(scratch, scratch_pos);
 }
 
+typedef struct
+{
+  int i;
+  int sz;
+  const LkUnicodeData* ud;
+  const u32* codepoints;
+  BidiUnit* o_units;
+} ComputeBidiUnitData;
+
+static void ComputeBidiUnitJob(int worker_id, void* data)
+{
+  ComputeBidiUnitData* cdata = data;
+  for (int i = cdata->i; i < cdata->i + cdata->sz; i++)
+  {
+    cdata->o_units[i] = BidiUnitCreate(cdata->codepoints[i], cdata->ud);
+  }
+}
+
 void lkComputeBidiUnits(
     LkContext* ctx,
     LkArena* arena,
@@ -1130,8 +1149,28 @@ void lkComputeBidiUnits(
   assert(o_units != NULL && *o_units == NULL);
 
   *o_units = APushArray(arena, BidiUnit, len_codepoints);
-  for (i32 i = 0; i < len_codepoints; i++)
-    (*o_units)[i] = BidiUnitCreate(codepoints[i], ctx->ud);
+  LkArena* scratch = arena->alt;
+  u64 scratch_pos = scratch->pos;
+  i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
+  if (work_chunk < 16384) work_chunk = 16384;
+  i32 num_chunks = (len_codepoints / work_chunk) + (len_codepoints % work_chunk > 0);
+  ComputeBidiUnitData* job_data = APushArray(scratch, ComputeBidiUnitData, num_chunks);
+  int chunk_i = 0;
+  for (i32 i = 0; i < len_codepoints; i += work_chunk)
+  {
+    job_data[chunk_i].i = i;
+    job_data[chunk_i].sz = (i + work_chunk > len_codepoints) ? (len_codepoints - i) : work_chunk;
+    job_data[chunk_i].ud = ctx->ud;
+    job_data[chunk_i].codepoints = codepoints;
+    job_data[chunk_i].o_units = *o_units;
+    LkJob job;
+    job.func = ComputeBidiUnitJob;
+    job.data = &job_data[chunk_i];
+    chunk_i++;
+    lkJobQueuePush(ctx->queue, job);
+  }
+  lkJobQueueWait(ctx->queue);
+  lkArenaRestore(scratch, scratch_pos);
 }
 
 void lkSplitParagraphs(
@@ -1227,6 +1266,96 @@ static bool IsPlainLtrParagraph(
   return (seen & ~plain_mask) == 0;
 }
 
+typedef struct
+{
+  LkContext* ctx;
+  BidiUnit* units;
+  i32 len_codepoints;
+  const LkParagraph* paragraphs;
+  i32 para_begin;
+  i32 para_end;
+  i32* levels;
+  i32* matching_isolate;
+  bool* para_is_plain;
+  i32 lrun_count;
+  i32 lrun_offset;
+  LkLevelRun* o_level_runs;
+} SplitBidiRunsData;
+
+// Resolves levels for every paragraph in the chunk and stores results in local
+//  paragraphs block.
+static void SplitBidiRunsResolveJob(int worker_id, void* data)
+{
+  SplitBidiRunsData* cdata = data;
+  LkArena* scratch = cdata->ctx->worker_scratch[worker_id + 1];
+  u64 scratch_pos = lkArenaGetPos(scratch);
+  i32 lrun_count = 0;
+  for (i32 para_i = cdata->para_begin; para_i < cdata->para_end; para_i++)
+  {
+    const LkParagraph* para_focus = &cdata->paragraphs[para_i];
+
+    // Fast path if the entire path is LTR, entire paragraph is single LTR run at level 0
+    cdata->para_is_plain[para_i] = IsPlainLtrParagraph(cdata->units, para_focus->para_start_i, para_focus->para_end_i, para_focus->para_level);
+    if (cdata->para_is_plain[para_i])
+    {
+      for (i32 i = para_focus->para_start_i; i <= para_focus->para_end_i; i++)
+      {
+        cdata->levels[i] = 0;
+        if (cdata->units[i].bidic != BIDIC_B || para_focus->para_start_i == para_focus->para_end_i)
+          cdata->units[i].bidic = BIDIC_L;
+      }
+      lrun_count++;
+      continue;
+    }
+
+    lkSplitBidiRunsParagraph(
+        scratch,
+        cdata->units,
+        cdata->len_codepoints,
+        para_focus->para_start_i,
+        para_focus->para_end_i,
+        para_focus->para_level,
+        cdata->levels,
+        cdata->matching_isolate);
+
+    i32 focus_i = para_focus->para_start_i;
+    while (focus_i <= para_focus->para_end_i)
+    {
+      LkLevelRun lr = LevelRunFromIndex(cdata->levels, focus_i, para_focus->para_end_i, para_focus->para_level);
+      focus_i = lr.end_i + 1;
+      lrun_count++;
+    }
+  }
+  cdata->lrun_count = lrun_count;
+  lkArenaRestore(scratch, scratch_pos);
+}
+
+// Copies local paragraphs block into shared paragraphs array.
+static void SplitBidiRunsWriteJob(int worker_id, void* data)
+{
+  SplitBidiRunsData* cdata = data;
+  i32 lrun_i = cdata->lrun_offset;
+  for (i32 para_i = cdata->para_begin; para_i < cdata->para_end; para_i++)
+  {
+    const LkParagraph* para_focus = &cdata->paragraphs[para_i];
+    if (cdata->para_is_plain[para_i])
+    {
+      cdata->o_level_runs[lrun_i++] = (LkLevelRun) {
+        para_focus->para_start_i, para_focus->para_end_i,
+        para_focus->para_start_i, para_focus->para_end_i, 0 };
+      continue;
+    }
+    i32 focus_i = para_focus->para_start_i;
+    while (focus_i <= para_focus->para_end_i)
+    {
+      LkLevelRun lr = LevelRunFromIndex(cdata->levels, focus_i, para_focus->para_end_i, para_focus->para_level);
+      cdata->o_level_runs[lrun_i++] = lr;
+      focus_i = lr.end_i + 1;
+    }
+  }
+  assert(lrun_i == cdata->lrun_offset + cdata->lrun_count);
+}
+
 void lkSplitBidiRuns(
     LkContext* ctx,
     LkArena* arena,
@@ -1246,61 +1375,67 @@ void lkSplitBidiRuns(
   LkArena* scratch = arena->alt;
   u64 scratch_pos = scratch->pos;
 
-  *o_level_run_count = 0;
-
   *o_levels = APushArray(arena, i32, len_codepoints);
   i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
-  for (i32 para_i = 0; para_i < paragraph_count; para_i++)
+  bool* para_is_plain = APushArray(scratch, bool, paragraph_count);
+
+  // Split set of paragraphs into chunks of roughly equal codepoint count.
+  i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
+  if (work_chunk < 16384) work_chunk = 16384;
+  i32 max_chunks = len_codepoints / work_chunk + 1;
+  SplitBidiRunsData* job_data = APushArray(scratch, SplitBidiRunsData, max_chunks);
+  i32 chunk_count = 0;
+  i32 para_i = 0;
+  while (para_i < paragraph_count)
   {
-      const LkParagraph* para_focus = &paragraphs[para_i];
-      i32 para_level_run_count = -1;
-      LkLevelRun* para_level_runs = NULL;
-
-      // Fast path if the entire path is LTR, entire paragraph is single LTR run at level 0
-      if (IsPlainLtrParagraph(units, para_focus->para_start_i, para_focus->para_end_i, para_focus->para_level))
-      {
-        for (i32 i = para_focus->para_start_i; i <= para_focus->para_end_i; i++)
-        {
-          (*o_levels)[i] = 0;
-          if (units[i].bidic != BIDIC_B || para_focus->para_start_i == para_focus->para_end_i)
-            units[i].bidic = BIDIC_L;
-        }
-        para_level_runs = APush(arena, LkLevelRun);
-        *para_level_runs = (LkLevelRun) {
-          para_focus->para_start_i, para_focus->para_end_i,
-          para_focus->para_start_i, para_focus->para_end_i, 0 };
-        para_level_run_count = 1;
-      }
-      else
-      {
-        lkSplitBidiRunsParagraph(
-            scratch,
-            units,
-            len_codepoints,
-            para_focus->para_start_i,
-            para_focus->para_end_i,
-            para_focus->para_level,
-            *o_levels,
-            matching_isolate);
-
-        LevelRunSplit(
-            arena,
-            *o_levels,
-            para_focus->para_start_i,
-            para_focus->para_end_i,
-            para_focus->para_level,
-            &para_level_run_count,
-            &para_level_runs);
-      }
-
-      if (*o_level_runs == NULL)
-        *o_level_runs = para_level_runs;
-      assert(para_level_runs == *o_level_runs + *o_level_run_count);
-      *o_level_run_count += para_level_run_count;
+    SplitBidiRunsData* cdata = &job_data[chunk_count++];
+    i32 chunk_codepoints = 0;
+    cdata->para_begin = para_i;
+    while (para_i < paragraph_count && chunk_codepoints < work_chunk)
+    {
+      chunk_codepoints += paragraphs[para_i].para_end_i - paragraphs[para_i].para_start_i + 1;
+      para_i++;
+    }
+    cdata->para_end = para_i;
+    cdata->ctx = ctx;
+    cdata->units = units;
+    cdata->len_codepoints = len_codepoints;
+    cdata->paragraphs = paragraphs;
+    cdata->levels = *o_levels;
+    cdata->matching_isolate = matching_isolate;
+    cdata->para_is_plain = para_is_plain;
+    cdata->lrun_count = 0;
+    cdata->lrun_offset = 0;
+    cdata->o_level_runs = NULL;
   }
 
-  if (*o_level_runs == NULL)
-    *o_level_runs = APushArray(arena, LkLevelRun, 0);
+  for (i32 chunk_i = 0; chunk_i < chunk_count; chunk_i++)
+  {
+    LkJob job;
+    job.func = SplitBidiRunsResolveJob;
+    job.data = &job_data[chunk_i];
+    lkJobQueuePush(ctx->queue, job);
+  }
+  lkJobQueueWait(ctx->queue);
+
+  i32 lrun_total = 0;
+  for (i32 chunk_i = 0; chunk_i < chunk_count; chunk_i++)
+  {
+    job_data[chunk_i].lrun_offset = lrun_total;
+    lrun_total += job_data[chunk_i].lrun_count;
+  }
+  *o_level_runs = APushArray(arena, LkLevelRun, lrun_total);
+  *o_level_run_count = lrun_total;
+
+  for (i32 chunk_i = 0; chunk_i < chunk_count; chunk_i++)
+  {
+    job_data[chunk_i].o_level_runs = *o_level_runs;
+    LkJob job;
+    job.func = SplitBidiRunsWriteJob;
+    job.data = &job_data[chunk_i];
+    lkJobQueuePush(ctx->queue, job);
+  }
+  lkJobQueueWait(ctx->queue);
 
   lkArenaRestore(scratch, scratch_pos);
 }

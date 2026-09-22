@@ -452,6 +452,6 @@ struct LkText;
 
 void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, const LkUnicodeData* ud, Breaker* o_brk);
 BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud);
-BreakerResult* lkGetBreaks(LkArena* arena, const struct LkText* text, const LkUnicodeData* ud);
+BreakerResult* lkGetBreaks(LkContext* ctx, LkArena* arena, const struct LkText* text);
 
 #endif

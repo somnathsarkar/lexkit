@@ -7,14 +7,18 @@
 #include <lexkit/bidi.h>
 #include <lexkit/sizes.h>
 
+typedef struct LkJobQueue LkJobQueue;
+
 struct LkContext
 {
   const LkUnicodeData* ud;
   LkAllocator* alloc;
   LkArena* scratch;
+  LkJobQueue* queue;
+  LkArena** worker_scratch;
 };
 
-void lkCreateContext(const LkUnicodeData* ud, LkAllocator* alloc, LkContext* o_ctx);
+void lkCreateContext(const LkUnicodeData* ud, int num_workers, LkAllocator* alloc, LkContext* o_ctx);
 void lkDestroyContext(LkContext* ctx);
 
 typedef struct
@@ -116,6 +120,7 @@ void lkLayoutText(
     LkVertexDescriptor_Text* o_vd,
     i32* o_vd_count);
 void lkShapeText(
+    LkContext* ctx,
     LkArena* arena,
     LkFont* font,
     LkText* text,
