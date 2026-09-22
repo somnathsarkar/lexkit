@@ -1302,6 +1302,11 @@ GBRK BreakerComputeGbrk(Breaker* brk, const LkUnicodeData* ud)
   return GBRK_BRK;
 }
 
+static bool IsAsciiLetter(u32 codepoint)
+{
+  return (codepoint >= 'a' && codepoint <= 'z') || (codepoint >= 'A' && codepoint <= 'Z');
+}
+
 BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
 {
   BreakerResult res = {0};
@@ -1316,6 +1321,34 @@ BreakerResult BreakerAdvance(Breaker* brk, const LkUnicodeData* ud)
   }
 
   brk->idx++;
+
+  // Fast path between two ASCII letters, there can be no line or word breaks and
+  //  there is a guaranteed grapheme break.
+  if (brk->idx > 0 &&
+      IsAsciiLetter(brk->codepoints[brk->idx]) &&
+      brk->idx + 1 < brk->len_codepoints &&
+      IsAsciiLetter(brk->codepoints[brk->idx + 1]))
+  {
+    Glyph g = brk->glyphs[brk->idx];
+    brk->lbcx = LBCX_AL;
+    brk->lbcx_adj = LBCX_AL;
+    brk->wbcx = WBCX_ALetter;
+    brk->wbcx_adj = WBCX_ALetter;
+    brk->gbcx = GBCX_XX;
+    brk->gc_adj = g.gc;
+    brk->eaw_adj = EAW_Na;
+    brk->incb = INCB_None;
+    brk->ep = false;
+    brk->ep_adj = false;
+
+    res.glyph_idx = brk->idx;
+    res.done = false;
+    res.lbrk = LBRK_PRO;
+    res.wbrk = WBRK_PRO;
+    res.gbrk = GBRK_BRK;
+    return res;
+  }
+
   if (brk->idx == 0)
   {
     Glyph g = brk->glyphs[0];
