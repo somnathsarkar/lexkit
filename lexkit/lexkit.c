@@ -570,7 +570,7 @@ typedef struct
 // Shapes every run of the job into its local block data->glyphs.
 //  Store overflow if the local block was not big enough, glyph_count for later prefix sum.
 //  Uses cluster_fill as scratch space to store the next free glyph spot per codepoint.
-static void ShapeJob(void* data)
+static void ShapeJob(int worker_id, void* data)
 {
   ShapeJobData* sdata = data;
   const LkText* text = sdata->text;
@@ -645,7 +645,7 @@ static void ShapeJob(void* data)
   sdata->glyph_count = glyph_total;
 }
 
-static void ShapeCopyJob(void* data)
+static void ShapeCopyJob(int worker_id, void* data)
 {
   ShapeJobData* sdata = data;
   memcpy(sdata->o_glyphs + sdata->glyph_offset, sdata->glyphs, sizeof(LkGlyph) * sdata->glyph_count);
@@ -728,7 +728,7 @@ void lkShapeText(
     {
       job_data[job_i].glyph_capacity *= 2;
       job_data[job_i].glyphs = APushArray(scratch, LkGlyph, job_data[job_i].glyph_capacity);
-      ShapeJob(&job_data[job_i]);
+      ShapeJob(-1, &job_data[job_i]);
     }
   }
 

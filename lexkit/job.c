@@ -6,7 +6,7 @@
 
 // Returns true if we performed a job, false otherwise
 
-static bool WorkerPerformJob(LkJobQueue* queue)
+static bool WorkerPerformJob(int worker_id, LkJobQueue* queue)
 {
   int queue_front = queue->start;
   int queue_end = queue->end;
@@ -16,7 +16,7 @@ static bool WorkerPerformJob(LkJobQueue* queue)
     int queue_front_old = _InterlockedCompareExchange(&queue->start, (queue_front + 1) % LEXKIT_MAX_JOBS, queue_front);
     if (queue_front_old == queue_front)
     {
-      job.func(job.data);
+      job.func(worker_id, job.data);
       InterlockedDecrement(&queue->complete);
       return true;
     }
@@ -26,12 +26,13 @@ static bool WorkerPerformJob(LkJobQueue* queue)
 
 static int WorkerLoop(void* data)
 {
-  LkJobQueue* queue = (LkJobQueue*)data;
+  LkWorkerContext* wctx = data;
+  LkJobQueue* queue = wctx->queue;
   while (true)
   {
     if (queue->terminate)
       return 0;
-    if (WorkerPerformJob(queue))
+    if (WorkerPerformJob(wctx->worker_id, queue))
       continue;
     
     bool found = false;
@@ -65,7 +66,9 @@ LkJobQueue* lkJobQueueCreate(LkAllocator* alloc, int num_workers)
 
   for (int i = 0; i < num_workers; i++)
   {
-    thrd_create(&queue->workers[i], WorkerLoop, queue);
+    queue->worker_ctx[i].worker_id = i;
+    queue->worker_ctx[i].queue = queue;
+    thrd_create(&queue->workers[i], WorkerLoop, &queue->worker_ctx[i]);
   }
   return queue;
 }
@@ -75,7 +78,7 @@ void lkJobQueuePush(LkJobQueue* queue, LkJob job)
   int queue_end_next = (queue->end + 1) % LEXKIT_MAX_JOBS;
   if (queue_end_next == queue->start)
   {
-    job.func(job.data);
+    job.func(-1, job.data);
     return;
   }
   queue->queue[queue->end] = job;
@@ -88,7 +91,7 @@ void lkJobQueueWait(LkJobQueue* queue)
 {
   while (queue->complete)
   {
-    if (WorkerPerformJob(queue))
+    if (WorkerPerformJob(-1, queue))
       continue;
 
     YieldProcessor();

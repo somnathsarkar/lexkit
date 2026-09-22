@@ -1638,7 +1638,7 @@ typedef struct
   i32 len;
 } GetBreaksData;
 
-static void GetBreaksJob(void* data)
+static void GetBreaksJob(int worker_id, void* data)
 {
   GetBreaksData* bdata = data;
   Breaker brk = {0};

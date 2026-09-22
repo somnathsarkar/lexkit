@@ -1130,7 +1130,7 @@ typedef struct
   BidiUnit* o_units;
 } ComputeBidiUnitData;
 
-static void ComputeBidiUnitJob(void* data)
+static void ComputeBidiUnitJob(int worker_id, void* data)
 {
   ComputeBidiUnitData* cdata = data;
   for (int i = cdata->i; i < cdata->i + cdata->sz; i++)
