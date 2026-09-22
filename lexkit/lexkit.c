@@ -573,6 +573,19 @@ typedef struct
   u32 glyph_offset;
 } ShapeJobData;
 
+// Infer script of array of codepoints by finding the first codepoint with a specific script.
+//  If the array only has codepoints without a specific script (eg. digits), return fallback.
+static hb_script_t RunScript(hb_unicode_funcs_t* ufuncs, const u32* codepoints, i32 start_i, i32 end_i, hb_script_t fallback)
+{
+  for (i32 i = start_i; i <= end_i; i++)
+  {
+    hb_script_t script = hb_unicode_script(ufuncs, codepoints[i]);
+    if (script != HB_SCRIPT_COMMON && script != HB_SCRIPT_INHERITED && script != HB_SCRIPT_UNKNOWN)
+      return script;
+  }
+  return fallback;
+}
+
 // Shapes every run of the job into its local arena
 static void ShapeJob(int worker_id, void* data)
 {
@@ -586,6 +599,9 @@ static void ShapeJob(int worker_id, void* data)
   sdata->glyphs = NULL;
 
   hb_buffer_t* buf = hb_buffer_create();
+  hb_unicode_funcs_t* ufuncs = hb_unicode_funcs_get_default();
+  hb_language_t language = hb_language_get_default();
+  hb_script_t script = HB_SCRIPT_COMMON;
   for (i32 lrun_i = sdata->lrun_begin; lrun_i < sdata->lrun_end; lrun_i++)
   {
     LkLevelRun lrun = sdata->lruns[lrun_i];
@@ -597,7 +613,9 @@ static void ShapeJob(int worker_id, void* data)
         text->codepoint_count,
         lrun.start_i,
         lrun.end_i - lrun.start_i + 1);
-    hb_buffer_guess_segment_properties(buf);
+    script = RunScript(ufuncs, text->codepoints, lrun.start_i, lrun.end_i, script);
+    hb_buffer_set_script(buf, script);
+    hb_buffer_set_language(buf, language);
     if (lrun.level % 2 == 1)
     {
       hb_buffer_set_direction(buf, HB_DIRECTION_RTL);
