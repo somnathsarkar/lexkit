@@ -116,6 +116,7 @@ void lkLayoutText(
     LkText* text,
     i32 w,
     i32 h,
+    i32 scroll_y,
     u64 max_vd,
     LkVertexDescriptor_Text* o_vd,
     i32* o_vd_count);

@@ -882,6 +882,7 @@ void lkLayoutText(
       LkText* text,
       i32 w,
       i32 h,
+      i32 scroll_y,
       u64 max_vd,
       LkVertexDescriptor_Text* o_vd,
       i32* o_vd_count)
@@ -903,10 +904,17 @@ void lkLayoutText(
   LkArena* scratch = ctx->scratch->alt;
   i32 vdc = 0;
   float cursor_x = 0.0;
-  float cursor_y = 0.0;
   LkFontAtlasGlyph aglyph = {0};
-  for (i32 line_i = 0; line_i < line_count; line_i++)
+
+  // Skip to first visible line
+  if (scroll_y < 0)
+    scroll_y = 0;
+  i32 line_first = (font->line_gap > 0) ? (i32)((scroll_y * 64.0f) / font->line_gap) : 0;
+  float cursor_y = line_first * font->line_gap - scroll_y * 64.0f;
+  for (i32 line_i = line_first; line_i < line_count; line_i++)
   {
+    if (cursor_y >= h * 64.0f)
+      break;
     u64 scratch_line_pos = scratch->pos;
     i32 line_codepoint_count = lines[line_i].end_i - lines[line_i].start_i;
 

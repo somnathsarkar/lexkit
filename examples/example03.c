@@ -139,7 +139,7 @@ int main() {
       glClear(GL_COLOR_BUFFER_BIT);
 
       i32 vdc = 0;
-      lkLayoutText(&ctx, &font, &text, w, h, 10240, vd, &vdc);
+      lkLayoutText(&ctx, &font, &text, w, h, 0, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(
