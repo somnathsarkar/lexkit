@@ -2,6 +2,7 @@
 #include <lexkit/break.h>
 #include <lexkit/bidi.h>
 #include <lexkit/perf.h>
+#include <lexkit/job.h>
 
 #include <hb.h>
 #include <ft2build.h>

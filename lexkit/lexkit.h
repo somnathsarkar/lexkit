@@ -6,7 +6,8 @@
 #include <lexkit/break.h>
 #include <lexkit/bidi.h>
 #include <lexkit/sizes.h>
-#include <lexkit/job.h>
+
+typedef struct LkJobQueue LkJobQueue;
 
 struct LkContext
 {
