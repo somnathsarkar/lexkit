@@ -370,9 +370,9 @@ static void ResolveIsolatingRunSequence(
     i32 unit_i;
   } BracketStackItem;
 
-  BracketPair* bp = APushArray(scratch, BracketPair, max_bracket_pairs);
+  BracketPair* bp = APushArrayNZ(scratch, BracketPair, max_bracket_pairs);
   i32 bracket_count = 0;
-  BracketStackItem* bracket_stack = APushArray(scratch, BracketStackItem, g_bracket_stack_size);
+  BracketStackItem* bracket_stack = APushArrayNZ(scratch, BracketStackItem, g_bracket_stack_size);
   i32 bracket_sp = 0;
   bool stack_overflow = false;
   for (i32 lrun_i = irun.lrun_start_i; lrun_i <= irun.lrun_end_i && !stack_overflow; lrun_i++)
@@ -416,7 +416,7 @@ static void ResolveIsolatingRunSequence(
   qsort_s(bp, bracket_count, sizeof(BracketPair), CmpBracketPair, NULL);
 
   // Whether a class was assigned to the matching bracket pair
-  bool* assigned_class = APushArray(scratch, bool, bracket_count);
+  bool* assigned_class = APushArrayNZ(scratch, bool, bracket_count);
 
   for (i32 bracket_i = 0; bracket_i < bracket_count; bracket_i++)
   {
@@ -662,7 +662,7 @@ static void LevelRunSplit(
     focus_i = lr.end_i + 1;
     level_run_count++;
   }
-  *o_level_runs = APushArray(arena, LkLevelRun, level_run_count);
+  *o_level_runs = APushArrayNZ(arena, LkLevelRun, level_run_count);
   i32 level_run_i = 0;
   focus_i = para_start_i;
   while (focus_i <= para_end_i)
@@ -689,13 +689,13 @@ static void lkSplitBidiRunsParagraph(
 
   // X1
 
-  BidiStatus *stack = APushArray(scratch, BidiStatus, g_bidi_max_depth + 2);
+  BidiStatus *stack = APushArrayNZ(scratch, BidiStatus, g_bidi_max_depth + 2);
   i32 sp = 0;
   stack[sp++] = (BidiStatus){para_level, DIROVR_Neutral, false};
   i32 overflow_isolate_count = 0;
   i32 overflow_embedding_count = 0;
   i32 valid_isolate_count = 0;
-  i32* isolate_stack = APushArray(scratch, i32, para_end_i - para_start_i + 1);
+  i32* isolate_stack = APushArrayNZ(scratch, i32, para_end_i - para_start_i + 1);
   i32 isolate_sp = 0;
 
   for (i32 i = para_start_i; i <= para_end_i; i++)
@@ -1027,8 +1027,8 @@ static void lkSplitBidiRunsParagraph(
 
   // Build isolating run sequences
   bool* lrun_used = APushArray(scratch, bool, lrun_count);
-  IsolatingRunSequence* iruns = APushArray(scratch, IsolatingRunSequence, lrun_count);
-  i32* irun_lrun_idxs = APushArray(scratch, i32, lrun_count);
+  IsolatingRunSequence* iruns = APushArrayNZ(scratch, IsolatingRunSequence, lrun_count);
+  i32* irun_lrun_idxs = APushArrayNZ(scratch, i32, lrun_count);
   i32 irun_count = 0;
 
   i32 irun_i = 0;
@@ -1148,13 +1148,13 @@ void lkComputeBidiUnits(
 {
   assert(o_units != NULL && *o_units == NULL);
 
-  *o_units = APushArray(arena, BidiUnit, len_codepoints);
+  *o_units = APushArrayNZ(arena, BidiUnit, len_codepoints);
   LkArena* scratch = arena->alt;
   u64 scratch_pos = scratch->pos;
   i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
   if (work_chunk < 16384) work_chunk = 16384;
   i32 num_chunks = (len_codepoints / work_chunk) + (len_codepoints % work_chunk > 0);
-  ComputeBidiUnitData* job_data = APushArray(scratch, ComputeBidiUnitData, num_chunks);
+  ComputeBidiUnitData* job_data = APushArrayNZ(scratch, ComputeBidiUnitData, num_chunks);
   int chunk_i = 0;
   for (i32 i = 0; i < len_codepoints; i += work_chunk)
   {
@@ -1198,7 +1198,7 @@ void lkSplitParagraphs(
     para_count++;
 
   *o_paragraph_count = 0;
-  *o_paragraphs = APushArray(arena, LkParagraph, para_count);
+  *o_paragraphs = APushArrayNZ(arena, LkParagraph, para_count);
 
   i32 para_start_i = 0;
   bool para_level_found = false;
@@ -1375,15 +1375,15 @@ void lkSplitBidiRuns(
   LkArena* scratch = arena->alt;
   u64 scratch_pos = scratch->pos;
 
-  *o_levels = APushArray(arena, i32, len_codepoints);
-  i32* matching_isolate = APushArray(scratch, i32, len_codepoints);
-  bool* para_is_plain = APushArray(scratch, bool, paragraph_count);
+  *o_levels = APushArrayNZ(arena, i32, len_codepoints);
+  i32* matching_isolate = APushArrayNZ(scratch, i32, len_codepoints);
+  bool* para_is_plain = APushArrayNZ(scratch, bool, paragraph_count);
 
   // Split set of paragraphs into chunks of roughly equal codepoint count.
   i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
   if (work_chunk < 16384) work_chunk = 16384;
   i32 max_chunks = len_codepoints / work_chunk + 1;
-  SplitBidiRunsData* job_data = APushArray(scratch, SplitBidiRunsData, max_chunks);
+  SplitBidiRunsData* job_data = APushArrayNZ(scratch, SplitBidiRunsData, max_chunks);
   i32 chunk_count = 0;
   i32 para_i = 0;
   while (para_i < paragraph_count)
@@ -1424,7 +1424,7 @@ void lkSplitBidiRuns(
     job_data[chunk_i].lrun_offset = lrun_total;
     lrun_total += job_data[chunk_i].lrun_count;
   }
-  *o_level_runs = APushArray(arena, LkLevelRun, lrun_total);
+  *o_level_runs = APushArrayNZ(arena, LkLevelRun, lrun_total);
   *o_level_run_count = lrun_total;
 
   for (i32 chunk_i = 0; chunk_i < chunk_count; chunk_i++)

@@ -427,7 +427,7 @@ static void BreakerInit(const u32* codepoints, i32 len_codepoints, Glyph* glyphs
 
 void BreakerCreate(LkArena* arena, const u32* codepoints, i32 len_codepoints, const LkUnicodeData* ud, Breaker* o_brk)
 {
-  BreakerInit(codepoints, len_codepoints, APushArray(arena, Glyph, len_codepoints), ud, o_brk);
+  BreakerInit(codepoints, len_codepoints, APushArrayNZ(arena, Glyph, len_codepoints), ud, o_brk);
 }
 
 static void BreakerGetNextGlyphLineBreak(Breaker* brk, const LkUnicodeData* ud, bool* io_next, i32* io_idx_next, Glyph* o_g)
@@ -1693,13 +1693,13 @@ BreakerResult* lkGetBreaks(LkContext* ctx, LkArena* arena, const struct LkText* 
   LkArena* scratch = arena->alt;
   u64 scratch_pos = lkArenaGetPos(scratch);
   i32 len_codepoints = (i32)text->codepoint_count;
-  BreakerResult* breaks = APushArray(arena, BreakerResult, len_codepoints);
-  Glyph* glyphs = APushArray(scratch, Glyph, len_codepoints);
+  BreakerResult* breaks = APushArrayNZ(arena, BreakerResult, len_codepoints);
+  Glyph* glyphs = APushArrayNZ(scratch, Glyph, len_codepoints);
 
   i32 work_chunk = len_codepoints / ((ctx->queue->num_workers + 1) * 4);
   if (work_chunk < 16384) work_chunk = 16384;
   i32 max_chunks = (len_codepoints + work_chunk - 1) / work_chunk;
-  GetBreaksData* job_data = APushArray(scratch, GetBreaksData, max_chunks);
+  GetBreaksData* job_data = APushArrayNZ(scratch, GetBreaksData, max_chunks);
 
   i32 chunk_i = 0;
   i32 start_i = 0;

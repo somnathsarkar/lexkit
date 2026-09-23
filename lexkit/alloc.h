@@ -24,6 +24,7 @@ struct LkArena
   u64 reserved;
   u64 committed;
   u64 pos;
+  u64 high;
   struct LkArena* alt;
   LkAllocator* alloc;
 };
@@ -36,11 +37,15 @@ LkArena* lkArenaCreateFixed(u64 sz);
 void lkArenaDestroy(LkArena* arena);
 void* lkArenaPush(LkArena* arena, u64 sz, u64 aln);
 void* lkArenaPushArray(LkArena* arena, u64 sz, u64 aln, u64 count);
+void* lkArenaPushNZ(LkArena* arena, u64 sz, u64 aln);
+void* lkArenaPushArrayNZ(LkArena* arena, u64 sz, u64 aln, u64 count);
 u64 lkArenaGetPos(LkArena* arena);
 void lkArenaRestore(LkArena* arena, u64 pos);
 
 #define APush(arena, tp) (tp*)lkArenaPush((arena), sizeof(tp), _Alignof(tp))
 #define APushArray(arena, tp, count) (tp*)lkArenaPushArray((arena), sizeof(tp), _Alignof(tp), (count))
+#define APushNZ(arena, tp) (tp*)lkArenaPushNZ((arena), sizeof(tp), _Alignof(tp))
+#define APushArrayNZ(arena, tp, count) (tp*)lkArenaPushArrayNZ((arena), sizeof(tp), _Alignof(tp), (count))
 #define AAlloc(alc, tp) (tp*)lkAllocatorAlloc((alc), sizeof(tp), _Alignof(tp))
 #define AAllocArray(alc, tp, count) (tp*)lkAllocatorAllocArray((alc), sizeof(tp), _Alignof(tp), (count))
 #define AFree(alc, ptr, tp, count) lkAllocatorFree((alc), (ptr), sizeof(tp) * (count))

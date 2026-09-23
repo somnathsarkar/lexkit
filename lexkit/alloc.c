@@ -79,6 +79,7 @@ LkArena* lkArenaCreateFrom(LkAllocator* alloc)
     alloc = lkAllocatorDefault();
   LkArena* arena = (LkArena*)calloc(1, sizeof(LkArena));
   arena->pos = 0;
+  arena->high = 0;
   arena->reserved = LK_ARENA_RESERVE;
   arena->committed = 0;
   arena->alloc = alloc;
@@ -86,6 +87,7 @@ LkArena* lkArenaCreateFrom(LkAllocator* alloc)
   assert(arena->data != NULL);
   arena->alt = (LkArena*)calloc(1, sizeof(LkArena));
   arena->alt->pos = 0;
+  arena->alt->high = 0;
   arena->alt->reserved = LK_ARENA_RESERVE;
   arena->alt->committed = 0;
   arena->alt->alloc = alloc;
@@ -99,12 +101,14 @@ LkArena* lkArenaCreateFixed(u64 sz)
 {
   LkArena* arena = (LkArena*)calloc(1, sizeof(LkArena));
   arena->pos = 0;
+  arena->high = 0;
   arena->reserved = sz;
   arena->committed = sz;
   arena->alloc = lkAllocatorDefault();
   arena->data = VirtualAlloc(NULL, sz, MEM_COMMIT, PAGE_READWRITE);
   arena->alt = (LkArena*)calloc(1, sizeof(LkArena));
   arena->alt->pos = 0;
+  arena->alt->high = 0;
   arena->alt->reserved = sz;
   arena->alt->committed = sz;
   arena->alt->alloc = lkAllocatorDefault();
@@ -129,7 +133,7 @@ static void ArenaCommit(LkArena* arena, u64 pos_required)
   arena->committed = pos_target;
 }
 
-void* lkArenaPush(LkArena* arena, u64 sz, u64 aln)
+static void* ArenaPushRaw(LkArena* arena, u64 sz, u64 aln)
 {
   assert(aln > 0);
   aln = (aln > 0) ? aln : 1;
@@ -143,19 +147,38 @@ void* lkArenaPush(LkArena* arena, u64 sz, u64 aln)
   return result;
 }
 
-void* lkArenaPushArray(LkArena* arena, u64 sz, u64 aln, u64 count)
+// Push to arena without setting allocated memory to zero
+void* lkArenaPushNZ(LkArena* arena, u64 sz, u64 aln)
 {
-  assert(aln > 0);
-  aln = (aln > 0) ? aln : 1;
-  u64 pos_aln = ((arena->pos + aln - 1) / aln) * aln;
-  u64 pos_target = pos_aln + sz * count;
-  if (pos_target > arena->committed)
-    ArenaCommit(arena, pos_target);
-  char* result = ((char*)arena->data) + pos_aln;
-  arena->pos = pos_target;
-  assert(arena->pos <= arena->reserved);
+  void* result = ArenaPushRaw(arena, sz, aln);
+  if (arena->pos > arena->high)
+    arena->high = arena->pos;
   return result;
 }
+
+void* lkArenaPushArrayNZ(LkArena* arena, u64 sz, u64 aln, u64 count)
+{
+  return lkArenaPushNZ(arena, sz * count, aln);
+}
+
+// Push memory to arena setting allocated memory to zero
+void* lkArenaPush(LkArena* arena, u64 sz, u64 aln)
+{
+  u64 pos_before = arena->pos;
+  char* result = ArenaPushRaw(arena, sz, aln);
+  u64 clear_end = (arena->pos < arena->high) ? arena->pos : arena->high;
+  if (clear_end > pos_before)
+    memset(((char*)arena->data) + pos_before, 0, clear_end - pos_before);
+  if (arena->pos > arena->high)
+    arena->high = arena->pos;
+  return result;
+}
+
+void* lkArenaPushArray(LkArena* arena, u64 sz, u64 aln, u64 count)
+{
+  return lkArenaPush(arena, sz * count, aln);
+}
+
 
 u64 lkArenaGetPos(LkArena* arena)
 {
@@ -166,8 +189,5 @@ void lkArenaRestore(LkArena* arena, u64 pos)
 {
   assert(pos >= 0 && pos <= arena->pos);
   if (pos < arena->pos)
-  {
-    memset((char*)(arena->data) + pos, 0, arena->pos - pos);
     arena->pos = pos;
-  }
 }

@@ -55,6 +55,7 @@ void lkCreateFont(LkContext* ctx, const char* cstr_path, i32 font_size, LkFont *
   int cursor_y_max = 0;
   o_font->glyph_count = (i32)ftface->num_glyphs;
   o_font->glyphs = AAllocArray(ctx->alloc, LkFontAtlasGlyph, o_font->glyph_count);
+  memset(o_font->glyphs, 0, sizeof(LkFontAtlasGlyph) * o_font->glyph_count);
   o_font->buffer = AAllocArray(ctx->alloc, u8, 4096llu * 4096llu);
   assert(o_font->glyphs != NULL && o_font->buffer != NULL);
 
@@ -283,7 +284,7 @@ void lkCreateText(LkContext* ctx, LkFont* font, const char* cstr, i32 len_cstr, 
 
   o_text->arena = lkArenaCreateFrom(ctx->alloc);
   o_text->codepoint_count = (u32)Utf8Decode(bytes, len_bytes, NULL);
-  o_text->codepoints = APushArray(o_text->arena, u32, o_text->codepoint_count);
+  o_text->codepoints = APushArrayNZ(o_text->arena, u32, o_text->codepoint_count);
   Utf8Decode(bytes, len_bytes, o_text->codepoints);
 
 #if MEASURE_PERF
@@ -350,7 +351,7 @@ float MaxF32(float a, float b)
 
 static void PushLine(LkArena* arena, LkLine** io_lines, i32* io_line_count, LkLine line)
 {
-  LkLine* new_line = APush(arena, LkLine);
+  LkLine* new_line = APushNZ(arena, LkLine);
   if (*io_lines == NULL)
     *io_lines = new_line;
   assert(new_line == *io_lines + *io_line_count);
@@ -629,7 +630,7 @@ static void ShapeJob(int worker_id, void* data)
     hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
     hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
 
-    LkGlyph* run_glyphs = APushArray(scratch, LkGlyph, glyph_count);
+    LkGlyph* run_glyphs = APushArrayNZ(scratch, LkGlyph, glyph_count);
     if (sdata->glyphs == NULL)
       sdata->glyphs = run_glyphs;
     assert(run_glyphs == sdata->glyphs + glyph_total);
@@ -645,7 +646,7 @@ static void ShapeJob(int worker_id, void* data)
       local_start[i + 1 - base_i] += local_start[i - base_i];
 
     u64 fill_pos = lkArenaGetPos(scratch);
-    u32* cluster_fill = APushArray(scratch, u32, (u64)(lrun.end_i - lrun.start_i + 1));
+    u32* cluster_fill = APushArrayNZ(scratch, u32, (u64)(lrun.end_i - lrun.start_i + 1));
     for (i32 i = lrun.start_i; i <= lrun.end_i; i++)
       cluster_fill[i - lrun.start_i] = local_start[i - base_i];
     for (u32 gi = 0; gi < glyph_count; gi++)
@@ -694,13 +695,13 @@ void lkShapeText(
   assert(*o_glyphs == NULL && *o_glyph_start == NULL);
 
   i32 len_codepoints = (i32)text->codepoint_count;
-  u32* glyph_start = APushArray(arena, u32, (u64)len_codepoints + 1);
+  u32* glyph_start = APushArrayNZ(arena, u32, (u64)len_codepoints + 1);
 
   LkArena* scratch = arena->alt;
   u64 scratch_pos = lkArenaGetPos(scratch);
 
   i32 arena_count = ctx->queue->num_workers + 1;
-  u64* worker_pos = APushArray(scratch, u64, arena_count);
+  u64* worker_pos = APushArrayNZ(scratch, u64, arena_count);
   for (i32 i = 0; i < arena_count; i++)
     worker_pos[i] = lkArenaGetPos(ctx->worker_scratch[i]);
 
@@ -708,7 +709,7 @@ void lkShapeText(
   i32 work_chunk = len_codepoints / (arena_count * 4);
   if (work_chunk < 16384) work_chunk = 16384;
   i32 max_jobs = len_codepoints / work_chunk + 1;
-  ShapeJobData* job_data = APushArray(scratch, ShapeJobData, max_jobs);
+  ShapeJobData* job_data = APushArrayNZ(scratch, ShapeJobData, max_jobs);
   i32 job_count = 0;
 
   i32 lrun_i = 0;
@@ -731,7 +732,7 @@ void lkShapeText(
     sdata->codepoint_begin = next_codepoint_i;
     sdata->codepoint_end = (lrun_i < lrun_count) ? lruns[lrun_i - 1].end_i : len_codepoints - 1;
     next_codepoint_i = sdata->codepoint_end + 1;
-    sdata->local_start = APushArray(scratch, u32, (u64)(sdata->codepoint_end - sdata->codepoint_begin) + 2);
+    sdata->local_start = APushArrayNZ(scratch, u32, (u64)(sdata->codepoint_end - sdata->codepoint_begin) + 2);
     sdata->glyphs = NULL;
     sdata->glyph_count = 0;
   }
@@ -752,7 +753,7 @@ void lkShapeText(
     glyph_total += job_data[job_i].glyph_count;
   }
 
-  LkGlyph* glyphs = APushArray(arena, LkGlyph, glyph_total);
+  LkGlyph* glyphs = APushArrayNZ(arena, LkGlyph, glyph_total);
   for (i32 job_i = 0; job_i < job_count; job_i++)
   {
     job_data[job_i].o_glyphs = glyphs;
@@ -930,7 +931,7 @@ void lkLayoutText(
 
     // L1
 
-    i32* level_line = APushArray(scratch, i32, line_codepoint_count);
+    i32* level_line = APushArrayNZ(scratch, i32, line_codepoint_count);
     for (i32 codepoint_i = lines[line_i].start_i; codepoint_i < lines[line_i].end_i; codepoint_i++)
     {
       level_line[codepoint_i - lines[line_i].start_i] = levels[codepoint_i];
@@ -956,8 +957,8 @@ void lkLayoutText(
 
     // L2
 
-    i32* codepoint_orders = APushArray(scratch, i32, line_codepoint_count);
-    L2ReversalNode* l2_nodes = APushArray(scratch, L2ReversalNode, line_codepoint_count);
+    i32* codepoint_orders = APushArrayNZ(scratch, i32, line_codepoint_count);
+    L2ReversalNode* l2_nodes = APushArrayNZ(scratch, L2ReversalNode, line_codepoint_count);
     i32 l2_node_count = 1;
     l2_nodes[0] = (L2ReversalNode) { false, 0, 0, line_codepoint_count, -1, -1, -1, -1 };
     BuildL2ReversalTree(level_line, line_codepoint_count, 0, 0, &l2_nodes[0].first_child, &l2_node_count, l2_nodes);
