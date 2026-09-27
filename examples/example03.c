@@ -109,6 +109,8 @@ int main() {
 
   int64_t ts = timestamp_win64();
   int64_t ts_acc = 0;
+  int scroll_y = 0;
+  int scroll_speed = font_size * 8;
 
   int quit = 0;
   while (!quit)
@@ -130,6 +132,14 @@ int main() {
     ts_acc += dts;
     if (ts_acc >= timestamp_win64_res() / 60)
     {
+      if (GetActiveWindow() == hwnd)
+      {
+        int direction = ((GetAsyncKeyState(VK_DOWN) & 0x8000) ? 1 : 0) - ((GetAsyncKeyState(VK_UP) & 0x8000) ? 1 : 0);
+        scroll_y += direction * scroll_speed / 60;
+        if (scroll_y < 0)
+          scroll_y = 0;
+      }
+
       RECT client_rect = {0};
       GetClientRect(hwnd, &client_rect);
       int w = client_rect.right - client_rect.left;
@@ -139,7 +149,7 @@ int main() {
       glClear(GL_COLOR_BUFFER_BIT);
 
       i32 vdc = 0;
-      lkLayoutText(&ctx, &font, &text, w, h, 10240, vd, &vdc);
+      lkLayoutText(&ctx, &font, &text, w, h, scroll_y, 10240, vd, &vdc);
 
       glBindBuffer(GL_ARRAY_BUFFER, buffer_vertex_text);
       glBufferData(
