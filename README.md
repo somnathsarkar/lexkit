@@ -1,8 +1,7 @@
 # lexkit
 
-| | |
-| ---- | ---|
 | ![Hello](images/hello.webp) | ![Odyssey](images/odyssey.webp) |
+| ---- | ---|
 | Rendering text in a variety of languages, scripts and directions with line breaking and hyphenation support. | Performing a layout of the entire text of *The Odyssey* in real-time with no caching.
 
 Lexkit is a fast text layout library written in C. It takes a font, a piece of UTF-8 text and a region on screen to write it into as input, and it outputs a list of quads to render. It's flexible enough to work with arbitrary rendering engines and graphics APIs, and we provide examples using OpenGL on Windows. You can learn more about the implementation details from the following articles:
